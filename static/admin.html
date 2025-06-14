@@ -118,6 +118,7 @@
                 loadCategories();
             } else {
                 const error = await response.json();
+                console.log('Ошибка сервера:', error); // Отладка
                 alert(`Ошибка создания категории: ${error.detail || 'Неизвестная ошибка'}`);
             }
         });
