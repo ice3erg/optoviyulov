@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Form, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
@@ -18,7 +18,7 @@ os.makedirs("static/uploads", exist_ok=True)
 
 app = FastAPI()
 
-# CORS для Telegram Web App
+# CORS для Telegram-апки
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,7 +37,7 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        parent_id INTEGER DEFAULT NULL,
+        parent_id INTEGER,
         FOREIGN KEY (parent_id) REFERENCES categories(id)
     )
 ''')
@@ -47,7 +47,7 @@ cursor.execute('''
         name TEXT NOT NULL,
         description TEXT,
         price REAL,
-        images TEXT, -- JSON с массивом путей к изображениям
+        images TEXT DEFAULT '["/static/placeholder.jpg"]',
         category_id INTEGER,
         FOREIGN KEY (category_id) REFERENCES categories(id)
     )
@@ -56,8 +56,8 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
-        products TEXT, -- JSON с массивом {product_id, quantity}
-        total REAL,
+        products TEXT,
+        total_price REAL,
         status TEXT DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -67,7 +67,7 @@ conn.commit()
 # Обслуживание статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Корневой путь
+# Корневой путь (пользовательская страница)
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
@@ -77,6 +77,16 @@ async def serve_index():
 async def serve_admin():
     return FileResponse("static/admin.html")
 
+# Профиль
+@app.get("/profile")
+async def serve_profile():
+    return FileResponse("static/profile.html")
+
+# Корзина
+@app.get("/cart")
+async def serve_cart():
+    return FileResponse("static/cart.html")
+
 # API для получения категорий
 @app.get("/api/categories")
 async def get_categories():
@@ -85,7 +95,7 @@ async def get_categories():
     return categories
 
 # API для создания категории
-@app.post("/api/categories")
+@app.post("/api/admin/create_category")
 async def create_category(name: str = Form(...), parent_id: int = Form(None)):
     try:
         cursor.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name, parent_id))
@@ -109,14 +119,30 @@ async def get_products(category_id: int = None, search: str = ''):
     cursor.execute(query, params)
     rows = cursor.fetchall()
     products = [
-        {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "images": json.loads(row[4]) if row[4] else [], "category": row[5]}
+        {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "images": json.loads(row[4]), "category": row[5]}
         for row in rows
     ]
+    logger.info(f"Returning {len(products)} products")
     return products
 
-# API для добавления товара с несколькими изображениями
+# API для получения одного товара по id
+@app.get("/api/products/{product_id}")
+async def get_product(product_id: int):
+    cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    return {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "images": json.loads(row[4]), "category_id": row[5]}
+
+# API для добавления товара с множественными изображениями
 @app.post("/api/admin/upload")
-async def upload_product(name: str = Form(...), description: str = Form(...), price: float = Form(...), category_id: int = Form(...), images: list[UploadFile] = File(None)):
+async def upload_product(
+    name: str = Form(...),
+    description: str = Form(...),
+    price: float = Form(...),
+    category_id: int = Form(...),
+    images: list[UploadFile] = File(None)
+):
     try:
         image_paths = []
         if images:
@@ -125,10 +151,10 @@ async def upload_product(name: str = Form(...), description: str = Form(...), pr
                 with open(filename, "wb") as buffer:
                     shutil.copyfileobj(image.file, buffer)
                 image_paths.append(f"/static/uploads/{image.filename}")
-        image_json = json.dumps(image_paths) if image_paths else "/static/placeholder.jpg"
+        image_json = json.dumps(image_paths) if image_paths else '["/static/placeholder.jpg"]'
 
         cursor.execute(
-            "INSERT INTO products (name, description, price, images, category_id) VALUES (?, ?, ?, ?, ?)",
+            'INSERT INTO products (name, description, price, images, category_id) VALUES (?, ?, ?, ?, ?)',
             (name, description, price, image_json, category_id)
         )
         conn.commit()
@@ -138,29 +164,30 @@ async def upload_product(name: str = Form(...), description: str = Form(...), pr
         logger.error(f"Error adding product: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка сервера")
 
-# API для добавления заказа
+# API для создания заказа
 @app.post("/api/orders")
-async def create_order(user_id: str = Form(...), products: str = Form(...)):  # products как JSON
+async def create_order(user_id: str = Form(...), products: str = Form(...), total_price: float = Form(...)):
     try:
-        product_list = json.loads(products)
-        total = sum(item["price"] * item["quantity"] for item in product_list)
         cursor.execute(
-            "INSERT INTO orders (user_id, products, total) VALUES (?, ?, ?)",
-            (user_id, json.dumps(product_list), total)
+            'INSERT INTO orders (user_id, products, total_price) VALUES (?, ?, ?)',
+            (user_id, products, total_price)
         )
         conn.commit()
-        # Здесь можно добавить отправку уведомления продавцу (например, через Telegram API)
-        logger.info(f"Order created for user {user_id} with total {total}")
+        logger.info(f"Order created for user_id={user_id}")
         return {"status": "success", "message": "Заказ создан"}
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка сервера")
 
-# API для профиля пользователя
-@app.get("/api/profile")
-async def get_profile():
-    # В реальном приложении используем Telegram Web App data
-    return {"user_id": "telegram_user_id", "username": "Maxim", "avatar": "/static/default_avatar.jpg"}
+# API для получения заказов пользователя
+@app.get("/api/orders")
+async def get_orders(user_id: str = None):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID required")
+    cursor.execute("SELECT * FROM orders WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
+    orders = [{"id": row[0], "user_id": row[1], "products": json.loads(row[2]), "total_price": row[3], "status": row[4], "created_at": row[5]} for row in rows]
+    return orders
 
 if __name__ == "__main__":
     import uvicorn
