@@ -11,7 +11,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
-app.mount("/", StaticFiles(directory="static", html=True), name="static")  # Обслуживание index.html и admin.html
+
+# Монтирование статических файлов с явным путем
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Инициализация базы данных
 try:
