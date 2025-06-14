@@ -55,7 +55,7 @@
                     method: 'POST',
                     body: formData
                 });
-                if (!response.ok) throw new Error('Ошибка сервера');
+                if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
                 const result = await response.json();
                 document.getElementById('result').innerHTML = `Статус: ${result.status || 'ошибка'} | Изображение: ${result.image_path || 'не указано'}`;
             } catch (error) {
