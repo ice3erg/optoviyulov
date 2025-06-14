@@ -38,7 +38,7 @@
         <form id="category-form" class="mb-4">
             <input type="text" id="category-name" placeholder="Название категории" required class="w-full p-2 border border-blue-300 rounded-lg mb-2">
             <select id="category-parent" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
-                <option value="">Нет родителя (главная категория)</option>
+                <option value="null">Нет родителя (главная категория)</option>
             </select>
             <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">Создать категорию</button>
         </form>
@@ -70,7 +70,7 @@
             const categories = await response.json();
             const parentSelect = document.getElementById('category-parent');
             const productSelect = document.getElementById('product-category');
-            parentSelect.innerHTML = '<option value="">Нет родителя (главная категория)</option>';
+            parentSelect.innerHTML = '<option value="null">Нет родителя (главная категория)</option>';
             productSelect.innerHTML = '<option value="">Выберите категорию</option>';
 
             function buildHierarchy(cats, parentId = null, prefix = '') {
@@ -100,21 +100,25 @@
         document.getElementById('category-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('category-name').value.trim();
-            const parentId = document.getElementById('category-parent').value || null;
+            const parentId = document.getElementById('category-parent').value;
             if (!name) {
                 alert('Название категории обязательно!');
                 return;
             }
-            console.log('Отправка данных:', { name, parent_id: parentId }); // Отладка
+            const data = {
+                name: name,
+                parent_id: parentId === 'null' ? null : parentId
+            };
+            console.log('Отправка данных:', data); // Отладка
             const response = await fetch('/api/admin/create_category', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ name, parent_id: parentId })
+                body: new URLSearchParams(data)
             });
             if (response.ok) {
                 alert('Категория создана!');
                 document.getElementById('category-name').value = '';
-                document.getElementById('category-parent').value = '';
+                document.getElementById('category-parent').value = 'null';
                 loadCategories();
             } else {
                 const error = await response.json();
