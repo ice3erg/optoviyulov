@@ -1,0 +1,149 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+        .form-container { margin-bottom: 20px; padding: 20px; background: white; border-radius: 5px; }
+        input, textarea, select, button { display: block; margin: 10px 0; padding: 10px; width: 100%; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Админ-панель</h1>
+    <div class="form-container">
+        <h2>Добавить товар вручную</h2>
+        <input type="text" id="name" placeholder="Название товара">
+        <textarea id="description" placeholder="Описание"></textarea>
+        <input type="number" id="price" placeholder="Цена (₽)">
+        <textarea id="attributes" placeholder='Характеристики (JSON, например: {"длина": "2м", "вес": "200г"})'></textarea>
+        <input type="text" id="image" placeholder="URL изображения или ID файла">
+        <select id="category">
+            <option value="">Выберите категорию</option>
+        </select>
+        <button onclick="addProduct()">Добавить товар</button>
+    </div>
+    <div class="form-container">
+        <h2>Загрузить товары из Excel</h2>
+        <input type="file" id="excelFile" accept=".xlsx">
+        <button onclick="uploadFile()">Загрузить Excel</button>
+    </div>
+    <div class="form-container">
+        <h2>Добавить категорию</h2>
+        <input type="text" id="categoryName" placeholder="Название категории">
+        <button onclick="addCategory()">Добавить категорию</button>
+    </div>
+
+    <script>
+        // Загрузка категорий
+        async function loadCategories() {
+            const response = await fetch('/api/categories');
+            const categories = await response.json();
+            const select = document.getElementById('category');
+            select.innerHTML = '<option value="">Выберите категорию</option>';
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                select.appendChild(option);
+            });
+        }
+
+        // Добавление товара
+        async function addProduct() {
+            const product = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                price: parseFloat(document.getElementById('price').value),
+                attributes: document.getElementById('attributes').value,
+                image: document.getElementById('image').value,
+                category_id: document.getElementById('category').value
+            };
+            const response = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(product)
+            });
+            const result = await response.json();
+            alert(result.status === 'success' ? 'Товар добавлен!' : 'Ошибка добавления');
+        }
+
+        // Загрузка Excel
+        async function uploadFile() {
+            const fileInput = document.getElementById('excelFile');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            const response = await fetch('/api/upload_excel', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            alert(result.status === 'success' ? 'Товары загружены!' : 'Ошибка загрузки');
+        }
+
+        // Добавление категории
+        async function addCategory() {
+            const category = {
+                name: document.getElementById('categoryName').value
+            };
+            const response = await fetch('/api/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(category)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                alert('Категория добавлена!');
+                loadCategories();
+            } else {
+                alert('Ошибка добавления категории');
+            }
+        }
+
+        // Инициализация
+        loadCategories();
+    </script>
+</body>
+</html>
