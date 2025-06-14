@@ -7,77 +7,87 @@ from PIL import Image
 import shutil
 
 app = FastAPI()
-app.mount("/", StaticFiles(directory="static", html=True), name="static")  # Обслуживание index.html на /
+app.mount("/", StaticFiles(directory="static", html=True), name="static")  # Обслуживание index.html и admin.html
 
 # Инициализация базы данных
-conn = sqlite3.connect('products.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        description TEXT,
-        price REAL,
-        image TEXT,
-        category TEXT
-    )
-''')
-conn.commit()
-
-# Загрузка начальных данных (для теста)
-sample_products = [
-    {"name": "Кренк 5см", "description": "Кренк для щуки", "price": 500, "image": "/static/placeholder_krenk.jpg", "category": "krenki"},
-    {"name": "Минноу 6см", "description": "Минноу для окуня", "price": 600, "image": "/static/placeholder_minnow.jpg", "category": "minnow"},
-    {"name": "Поппер 5см", "description": "Поппер для поверхностной ловли", "price": 550, "image": "/static/placeholder_popper.jpg", "category": "poppers"},
-    {"name": "Кастинг Спиннинг", "description": "Спиннинг для дальних забросов", "price": 3000, "image": "/static/placeholder_casting.jpg", "category": "casting"}
-]
-for product in sample_products:
-    cursor.execute('INSERT OR IGNORE INTO products (name, description, price, image, category) VALUES (?, ?, ?, ?, ?)', 
-                   (product["name"], product["description"], product["price"], product["image"], product["category"]))
-conn.commit()
+try:
+    conn = sqlite3.connect('products.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT,
+            price REAL,
+            image TEXT,
+            category TEXT
+        )
+    ''')
+    # Добавление начальных данных для теста
+    sample_products = [
+        {"name": "Кренк 5см", "description": "Кренк для щуки", "price": 500, "image": "/static/placeholder_krenk.jpg", "category": "krenki"},
+        {"name": "Минноу 6см", "description": "Минноу для окуня", "price": 600, "image": "/static/placeholder_minnow.jpg", "category": "minnow"},
+        {"name": "Поппер 5см", "description": "Поппер для поверхностной ловли", "price": 550, "image": "/static/placeholder_popper.jpg", "category": "poppers"},
+        {"name": "Кастинг Спиннинг", "description": "Спиннинг для дальних забросов", "price": 3000, "image": "/static/placeholder_casting.jpg", "category": "casting"}
+    ]
+    for product in sample_products:
+        cursor.execute('INSERT OR IGNORE INTO products (name, description, price, image, category) VALUES (?, ?, ?, ?, ?)', 
+                       (product["name"], product["description"], product["price"], product["image"], product["category"]))
+    conn.commit()
+except sqlite3.Error as e:
+    print(f"Ошибка подключения к базе данных: {e}")
 
 # API для товаров
 @app.get('/api/products')
 async def get_products(category: str = '', search: str = ''):
-    query = 'SELECT * FROM products WHERE 1=1'
-    params = []
-    if category:
-        query += ' AND category = ?'
-        params.append(category)
-    if search:
-        query += ' AND name LIKE ?'
-        params.append(f'%{search}%')
-    cursor.execute(query, params)
-    products = cursor.fetchall()
-    if not products:
-        raise HTTPException(status_code=404, detail="Товары не найдены")
-    return [{'id': p[0], 'name': p[1], 'description': p[2], 'price': p[3], 'image': p[4], 'category': p[5]} for p in products]
+    try:
+        query = 'SELECT * FROM products WHERE 1=1'
+        params = []
+        if category:
+            query += ' AND category = ?'
+            params.append(category)
+        if search:
+            query += ' AND name LIKE ?'
+            params.append(f'%{search}%')
+        cursor.execute(query, params)
+        products = cursor.fetchall()
+        if not products:
+            raise HTTPException(status_code=404, detail="Товары не найдены")
+        return [{'id': p[0], 'name': p[1], 'description': p[2], 'price': p[3], 'image': p[4], 'category': p[5]} for p in products]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {e}")
 
 @app.get('/api/products/{product_id}')
 async def get_product(product_id: int):
-    cursor.execute('SELECT * FROM products WHERE id = ?', (product_id,))
-    p = cursor.fetchone()
-    if not p:
-        raise HTTPException(status_code=404, detail="Товар не найден")
-    return {'id': p[0], 'name': p[1], 'description': p[2], 'price': p[3], 'image': p[4], 'category': p[5]}
+    try:
+        cursor.execute('SELECT * FROM products WHERE id = ?', (product_id,))
+        p = cursor.fetchone()
+        if not p:
+            raise HTTPException(status_code=404, detail="Товар не найден")
+        return {'id': p[0], 'name': p[1], 'description': p[2], 'price': p[3], 'image': p[4], 'category': p[5]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {e}")
 
 # Загрузка через админ-панель
 @app.post('/api/admin/upload')
 async def upload_product(name: str, description: str, price: float, category: str, image: UploadFile = File(...)):
-    # Сохранение изображения
-    image_path = f"static/uploads/{image.filename}"
-    os.makedirs("static/uploads", exist_ok=True)
-    with open(image_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
-    # Сжатие изображения
-    img = Image.open(image_path)
-    img.thumbnail((100, 100))  # Уменьшение до 100x100
-    img.save(image_path, optimize=True)
-    # Добавление в базу
-    cursor.execute('INSERT INTO products (name, description, price, image, category) VALUES (?, ?, ?, ?, ?)',
-                   (name, description, price, f"/static/uploads/{image.filename}", category))
-    conn.commit()
-    return {"status": "success", "image_path": f"/static/uploads/{image.filename}"}
+    try:
+        # Сохранение изображения
+        image_path = f"static/uploads/{image.filename}"
+        os.makedirs("static/uploads", exist_ok=True)
+        with open(image_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        # Сжатие изображения
+        img = Image.open(image_path)
+        img.thumbnail((100, 100))  # Уменьшение до 100x100
+        img.save(image_path, optimize=True)
+        # Добавление в базу
+        cursor.execute('INSERT INTO products (name, description, price, image, category) VALUES (?, ?, ?, ?, ?)',
+                       (name, description, price, f"/static/uploads/{image.filename}", category))
+        conn.commit()
+        return {"status": "success", "image_path": f"/static/uploads/{image.filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки: {e}")
 
 if __name__ == "__main__":
     import uvicorn
