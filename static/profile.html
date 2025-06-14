@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <title>Профиль</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e40af" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .header::before {
+            content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231e40af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-2v-2h2v2zm0-4h-2V7h2v6zm4 4h-2v-2h2v2zm0-4h-2V7h2v6z"/><path d="M17 10l-5-5-5 5h10z"/></svg>');
+            position: absolute;
+            left: 1rem;
+            top: 1rem;
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+        .language-switch {
+            position: absolute;
+            top: 1rem;
+            right: 4rem;
+        }
+        .theme-switch {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+        .dark-theme {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .dark-theme .header {
+            background-color: #2d3748;
+        }
+        .dark-theme .bg-white {
+            background-color: #2d3748;
+        }
+        .dark-theme .text-blue-800 {
+            color: #a0aec0;
+        }
+        .dark-theme .text-gray-600 {
+            color: #cbd5e0;
+        }
+        .dark-theme .text-gray-500 {
+            color: #a0aec0;
+        }
+        .dark-theme .text-gray-700 {
+            color: #e2e8f0;
+        }
+        .dark-theme .border-gray-200 {
+            border-color: #4a5568;
+        }
+    </style>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+    <header class="header bg-blue-700 text-white text-2xl font-bold p-4 relative shadow-md">
+        Профиль
+        <select onchange="changeLanguage()" id="language" class="language-switch bg-blue-700 text-white border-none rounded">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+        </select>
+        <button onclick="toggleTheme()" id="theme-switch" class="theme-switch bg-blue-700 text-white border-none rounded px-2">🌙</button>
+    </header>
+    <div class="mx-4 mt-4 p-4 bg-white rounded-lg shadow-md">
+        <img id="profile-avatar" src="" alt="Аватар" class="w-24 h-24 mx-auto rounded-full mb-4">
+        <p id="profile-name" class="text-lg font-semibold text-blue-800 text-center"></p>
+        <h4 class="text-blue-800 mt-4 text-center">Заказы</h4>
+        <div id="orders" class="mt-2 text-center"></div>
+    </div>
+    <footer class="footer fixed bottom-0 w-full bg-blue-700 p-2 flex justify-around shadow-lg">
+        <a href="/" class="text-white text-2xl hover:text-blue-200 transition duration-200">🏠</a>
+        <a href="/cart" class="text-white text-2xl hover:text-blue-200 transition duration-200">🛒</a>
+    </footer>
+    <div class="store-info text-center text-blue-800 mt-4">
+        <p class="text-sm">Оптовый Улов - лучший выбор для рыбалки!</p>
+        <p class="text-sm">Контакты: @OptUlovSupport | Тел: +7 (999) 123-45-67</p>
+        <p class="text-xs text-gray-600">Последнее обновление: 14 июня 2025, 08:29 AM PDT</p>
+    </div>
+
+    <script>
+        let language = 'ru';
+        let isDarkTheme = false;
+        const translations = {
+            ru: { profile: "Профиль", noOrders: "Нет заказов.", orders: "Заказы", theme: "Темная тема" },
+            en: { profile: "Profile", noOrders: "No orders.", orders: "Orders", theme: "Dark theme" }
+        };
+
+        function changeLanguage() {
+            language = document.getElementById('language').value;
+            updateTranslations();
+            loadOrders();
+        }
+
+        function updateTranslations() {
+            document.querySelector('header').textContent = translations[language].profile;
+            document.querySelector('h4').textContent = translations[language].orders;
+            document.getElementById('theme-switch').textContent = isDarkTheme ? '☀️' : '🌙';
+            if (!document.getElementById('orders').innerHTML) loadOrders();
+        }
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.body.classList.toggle('dark-theme', isDarkTheme);
+            updateTranslations();
+        }
+
+        async function loadOrders() {
+            const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || "unknown";
+            const response = await fetch(`/api/orders?user_id=${userId}`);
+            if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+            const orders = await response.json();
+            document.getElementById('orders').innerHTML = orders.length
+                ? orders.map(o => `<div class="text-gray-700 mt-2">Заказ #${o.id}: ${o.total_price} ₽, Статус: ${o.status}</div>`).join('')
+                : `<div class="text-gray-500 mt-2">${translations[language].noOrders}</div>`;
+            document.getElementById('profile-avatar').src = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url || 'https://via.placeholder.com/100';
+            document.getElementById('profile-name').textContent = `${window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name || 'Unknown'} ${window.Telegram?.WebApp?.initDataUnsafe?.user?.last_name || ''}`;
+        }
+
+        window.onload = () => {
+            loadOrders();
+            updateTranslations();
+            if (window.Telegram?.WebApp) window.Telegram.WebApp.ready();
+        };
+    </script>
+</body>
+</html>
