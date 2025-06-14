@@ -5,7 +5,7 @@ import logging
 import asyncio
 import threading
 from telegram import Bot
-from telegram.ext import Application
+from telegram.ext import Application, CommandHandler
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -13,15 +13,7 @@ logger = logging.getLogger("telegram_bot")
 
 # Токен бота и ID чата продавца из переменных окружения
 BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
-SELLER_CHAT_ID = os.getenv("SELLER_CHAT_ID")
-
-# Проверка переменных окружения
-if not BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN не установлен")
-    raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
-if not SELLER_CHAT_ID:
-    logger.error("SELLER_CHAT_ID не установлен")
-    raise ValueError("SELLER_CHAT_ID не установлен")
+SELLER_CHAT_ID = os.getenv("984066798")
 
 # Подключение к базе данных
 DB_PATH = "products.db"
@@ -29,16 +21,34 @@ conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
 # Инициализация бота
-try:
-    bot = Bot(token=BOT_TOKEN)
-    application = Application.builder().token(BOT_TOKEN).build()
-    logger.info("Telegram бот успешно инициализирован")
-except Exception as e:
-    logger.error(f"Ошибка инициализации бота: {str(e)}")
-    raise
+bot = None
+application = None
+if BOT_TOKEN and SELLER_CHAT_ID:
+    try:
+        bot = Bot(token=BOT_TOKEN)
+        application = Application.builder().token(BOT_TOKEN).build()
+        logger.info("Telegram бот успешно инициализирован")
+    except Exception as e:
+        logger.error(f"Ошибка инициализации бота: {str(e)}")
+        bot = None
+        application = None
+else:
+    logger.warning(
+        f"Telegram бот не запущен: "
+        f"TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, "
+        f"SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}"
+    )
+
+async def start(update, context):
+    """Временная команда для получения chat_id."""
+    chat_id = update.message.chat.id
+    await update.message.reply_text(f"Бот работает! Ваш chat_id: {chat_id}")
 
 async def send_order_notification(order_data):
     """Отправка уведомления о новом заказе продавцу."""
+    if not bot or not SELLER_CHAT_ID:
+        logger.warning("Уведомление не отправлено: бот не инициализирован или SELLER_CHAT_ID не установлен")
+        return
     try:
         message = (
             f"Новый заказ!\n"
@@ -56,7 +66,12 @@ async def send_order_notification(order_data):
 
 async def start_bot():
     """Запуск бота с polling."""
+    if not application:
+        logger.warning("Бот не запущен: application не инициализирован")
+        return
     try:
+        # Временная команда для получения chat_id
+        application.add_handler(CommandHandler("start", start))
         await application.initialize()
         await application.start()
         await application.updater.start_polling()
@@ -66,6 +81,9 @@ async def start_bot():
 
 def run_bot_in_background():
     """Запуск бота в отдельном потоке."""
+    if not application:
+        logger.warning("Бот не запущен в фоновом режиме: application не инициализирован")
+        return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_bot())
