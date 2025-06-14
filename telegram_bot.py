@@ -15,6 +15,8 @@ logger = logging.getLogger("telegram_bot")
 BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
 SELLER_CHAT_ID = os.getenv("984066798")
 
+logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={BOT_TOKEN}, SELLER_CHAT_ID={SELLER_CHAT_ID}")
+
 # Подключение к базе данных
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -25,6 +27,7 @@ bot = None
 application = None
 if BOT_TOKEN and SELLER_CHAT_ID:
     try:
+        logger.info("Попытка инициализации бота...")
         bot = Bot(token=BOT_TOKEN)
         application = Application.builder().token(BOT_TOKEN).build()
         logger.info("Telegram бот успешно инициализирован")
@@ -39,17 +42,13 @@ else:
         f"SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}"
     )
 
-async def start(update, context):
-    """Временная команда для получения chat_id."""
-    chat_id = update.message.chat.id
-    await update.message.reply_text(f"Бот работает! Ваш chat_id: {chat_id}")
-
 async def send_order_notification(order_data):
     """Отправка уведомления о новом заказе продавцу."""
     if not bot or not SELLER_CHAT_ID:
         logger.warning("Уведомление не отправлено: бот не инициализирован или SELLER_CHAT_ID не установлен")
         return
     try:
+        logger.info(f"Попытка отправки уведомления в чат {SELLER_CHAT_ID}")
         message = (
             f"Новый заказ!\n"
             f"ID: {order_data['id']}\n"
@@ -70,8 +69,7 @@ async def start_bot():
         logger.warning("Бот не запущен: application не инициализирован")
         return
     try:
-        # Временная команда для получения chat_id
-        application.add_handler(CommandHandler("start", start))
+        logger.info("Запуск бота с polling...")
         await application.initialize()
         await application.start()
         await application.updater.start_polling()
@@ -89,5 +87,7 @@ def run_bot_in_background():
     loop.run_until_complete(start_bot())
     loop.run_forever()
 
+if __name__ == "__main__":
+    run_bot_in_background()
 if __name__ == "__main__":
     run_bot_in_background()
