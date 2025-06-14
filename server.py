@@ -3,14 +3,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3
 import logging
+import os
 
-# Set up logging
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("optulov")
 
+# Создание необходимых директорий
+os.makedirs("static", exist_ok=True)
+
 app = FastAPI()
 
-# Database connection
+# Подключение к базе данных
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
@@ -26,20 +30,28 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Serve index.html at root
-@app.get("/")
-async def serve_index():
-    return FileResponse("static/index.html")
-
-# Serve admin.html at /admin
-@app.get("/admin")
-async def serve_admin():
-    return FileResponse("static/admin.html")
-
-# Mount static files at /static
+# Обслуживание статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# API to get products
+# Корневой путь (пользовательская страница)
+@app.get("/")
+async def serve_index():
+    index_path = "static/index.html"
+    if not os.path.exists(index_path):
+        logger.error("index.html не найден!")
+        raise HTTPException(status_code=404, detail="Файл index.html не найден")
+    return FileResponse(index_path)
+
+# Админ-панель
+@app.get("/admin")
+async def serve_admin():
+    admin_path = "static/admin.html"
+    if not os.path.exists(admin_path):
+        logger.error("admin.html не найден!")
+        raise HTTPException(status_code=404, detail="Файл admin.html не найден")
+    return FileResponse(admin_path)
+
+# API для получения товаров
 @app.get("/api/products")
 async def get_products(category: str = '', search: str = ''):
     logger.info(f"Fetching products with category='{category}', search='{search}'")
@@ -60,9 +72,14 @@ async def get_products(category: str = '', search: str = ''):
     logger.info(f"Returning {len(products)} products")
     return products
 
-# API to add a product
+# API для добавления товара
 @app.post("/api/admin/upload")
-async def upload_product(name: str = Form(...), description: str = Form(...), price: float = Form(...), category: str = Form(...)):
+async def upload_product(
+    name: str = Form(...),
+    description: str = Form(...),
+    price: float = Form(...),
+    category: str = Form(...)
+):
     try:
         cursor.execute(
             'INSERT INTO products (name, description, price, category) VALUES (?, ?, ?, ?)',
