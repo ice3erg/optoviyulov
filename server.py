@@ -7,7 +7,9 @@ import logging
 import os
 import shutil
 import json
-import telegram_bot  # Импорт бота
+import telegram_bot
+import asyncio
+import threading
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +20,15 @@ os.makedirs("static", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
 app = FastAPI()
+
+# Запуск Telegram бота в отдельном потоке при старте приложения
+@app.on_event("startup")
+async def startup_event():
+    try:
+        threading.Thread(target=telegram_bot.run_bot_in_background, daemon=True).start()
+        logger.info("FastAPI приложение запущено, Telegram бот (если настроен) запущен")
+    except Exception as e:
+        logger.error(f"Ошибка при запуске Telegram бота: {str(e)}")
 
 # CORS для Telegram-апки
 app.add_middleware(
@@ -33,7 +44,7 @@ DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
-# Создание таблиц (оставляем без изменений)
+# Создание таблиц
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,9 +207,19 @@ async def create_order(user_id: str = Form(...), products: str = Form(...), tota
             (user_id, products, total_price)
         )
         conn.commit()
+        order_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
+        order = cursor.fetchone()
+        order_data = {
+            "id": order[0],
+            "user_id": order[1],
+            "products": json.loads(order[2]),
+            "total_price": order[3],
+            "status": order[4],
+            "created_at": order[5]
+        }
+        asyncio.create_task(telegram_bot.send_order_notification(order_data))
         logger.info(f"Order created for user_id={user_id}")
-        # Триггер уведомления через Telegram-бот
-        import telegram_bot  # Импорт для запуска бота
         return {"status": "success", "message": "Заказ создан"}
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
