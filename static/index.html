@@ -30,10 +30,11 @@
             width: 1.5rem;
             height: 1.5rem;
         }
-        .language-switch {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
+        .footer a {
+            position: relative; /* Фиксируем положение иконок */
+        }
+        .footer .active {
+            color: #60a5fa; /* Цвет для активной иконки */
         }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -41,10 +42,6 @@
 <body class="bg-gray-100 font-sans text-gray-800">
     <header class="header bg-blue-700 text-white text-2xl font-bold p-4 relative shadow-md">
         Оптовый Улов
-        <select onchange="changeLanguage()" id="language" class="language-switch bg-blue-700 text-white border-none rounded">
-            <option value="ru">Русский</option>
-            <option value="en">English</option>
-        </select>
     </header>
     <div class="tabs flex justify-around bg-blue-500 p-1 rounded-t-lg shadow-md">
         <button class="tablink w-full py-2 text-white font-semibold rounded-t-lg active" onclick="openTab('catalog')">Каталог</button>
@@ -67,6 +64,7 @@
         <div id="products" class="grid gap-4 p-4"></div>
     </div>
     <footer class="footer fixed bottom-0 w-full bg-blue-700 p-2 flex justify-around shadow-lg">
+        <a href="/" class="text-white text-2xl hover:text-blue-200 transition duration-200">🏠</a>
         <a href="/cart" class="text-white text-2xl hover:text-blue-200 transition duration-200">🛒</a>
         <a href="/profile" class="text-white text-2xl hover:text-blue-200 transition duration-200">👤</a>
     </footer>
@@ -77,23 +75,6 @@
     </div>
 
     <script>
-        let language = 'ru';
-        const translations = {
-            ru: { catalog: "Каталог", cart: "Корзина", profile: "Профиль", noProducts: "Товары пока не добавлены.", noOrders: "Нет заказов.", total: "Общая стоимость", placeOrder: "Отправить заказ", search: "Поиск товаров..." },
-            en: { catalog: "Catalog", cart: "Cart", profile: "Profile", noProducts: "No products available.", noOrders: "No orders.", total: "Total cost", placeOrder: "Place Order", search: "Search products..." }
-        };
-
-        function changeLanguage() {
-            language = document.getElementById('language').value;
-            updateTranslations();
-            loadProducts();
-        }
-
-        function updateTranslations() {
-            document.getElementById('search').placeholder = translations[language].search;
-            if (!document.getElementById('products').innerHTML) loadProducts();
-        }
-
         function openTab(tabName) {
             document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
             document.getElementById('catalog').classList.remove('active');
@@ -116,13 +97,13 @@
             const category = document.getElementById('category').value;
             const search = document.getElementById('search').value;
             try {
-                const response = await fetch(`/api/products?category_id=${category}&search=${encodeURIComponent(search)}`);
+                const response = await fetch(`/api/products?category_id=${category || ''}&search=${encodeURIComponent(search || '')}`);
                 if (!response.ok) throw new Error('Товары не найдены');
                 const products = await response.json();
                 const productsContainer = document.getElementById('products');
                 productsContainer.innerHTML = '';
                 if (products.length === 0) {
-                    productsContainer.innerHTML = `<p class="text-gray-500">${translations[language].noProducts}</p>`;
+                    productsContainer.innerHTML = '<p class="text-gray-500">Товары пока не добавлены.</p>';
                 } else {
                     productsContainer.classList.add('fade-in');
                     products.forEach(product => {
@@ -147,10 +128,17 @@
             }
         }
 
+        // Фиксация активной иконки в футере на основе текущего URL
         window.onload = () => {
             loadCategories();
             loadProducts();
-            updateTranslations();
+            const currentPath = window.location.pathname;
+            const footerLinks = document.querySelectorAll('footer a');
+            footerLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
             if (window.Telegram?.WebApp) window.Telegram.WebApp.ready();
         };
     </script>
