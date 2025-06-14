@@ -31,10 +31,10 @@
             height: 1.5rem;
         }
         .footer a {
-            position: relative; /* Фиксируем положение иконок */
+            position: relative;
         }
         .footer .active {
-            color: #60a5fa; /* Цвет для активной иконки */
+            color: #60a5fa;
         }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -96,39 +96,45 @@
         async function loadProducts() {
             const category = document.getElementById('category').value;
             const search = document.getElementById('search').value;
+            const params = new URLSearchParams();
+            if (category) params.append('category_id', category);
+            if (search) params.append('search', search);
             try {
-                const response = await fetch(`/api/products?category_id=${category || ''}&search=${encodeURIComponent(search || '')}`);
-                if (!response.ok) throw new Error('Товары не найдены');
+                const response = await fetch(`/api/products?${params.toString()}`);
                 const products = await response.json();
                 const productsContainer = document.getElementById('products');
                 productsContainer.innerHTML = '';
-                if (products.length === 0) {
-                    productsContainer.innerHTML = '<p class="text-gray-500">Товары пока не добавлены.</p>';
+                if (response.ok) {
+                    if (products.length === 0) {
+                        productsContainer.innerHTML = '<p class="text-gray-500">Товары пока не добавлены.</p>';
+                    } else {
+                        productsContainer.classList.add('fade-in');
+                        products.forEach(product => {
+                            const div = document.createElement('div');
+                            div.className = 'product bg-white rounded-lg shadow-md p-4 flex items-center space-x-4';
+                            div.innerHTML = `
+                                ${product.images.map(img => `<img src="${img}" alt="${product.name}" class="w-20 h-20 object-cover rounded">`).join('')}
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-semibold text-blue-800">${product.name}</h3>
+                                    <p class="text-gray-600">${product.description}</p>
+                                    <p class="text-gray-800">Цена: ${product.price} ₽</p>
+                                </div>
+                                <a href="/cart?add=${product.id}" class="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 transition duration-200">Купить</a>
+                            `;
+                            productsContainer.appendChild(div);
+                        });
+                    }
                 } else {
-                    productsContainer.classList.add('fade-in');
-                    products.forEach(product => {
-                        const div = document.createElement('div');
-                        div.className = 'product bg-white rounded-lg shadow-md p-4 flex items-center space-x-4';
-                        div.innerHTML = `
-                            ${product.images.map(img => `<img src="${img}" alt="${product.name}" class="w-20 h-20 object-cover rounded">`).join('')}
-                            <div class="flex-1">
-                                <h3 class="text-lg font-semibold text-blue-800">${product.name}</h3>
-                                <p class="text-gray-600">${product.description}</p>
-                                <p class="text-gray-800">Цена: ${product.price} ₽</p>
-                            </div>
-                            <a href="/cart?add=${product.id}" class="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 transition duration-200">Купить</a>
-                        `;
-                        productsContainer.appendChild(div);
-                    });
+                    throw new Error('Ошибка загрузки товаров');
                 }
                 document.getElementById('search-error').style.display = 'none';
             } catch (error) {
                 document.getElementById('products').innerHTML = '<p class="text-red-500">Ошибка загрузки товаров.</p>';
                 document.getElementById('search-error').style.display = 'block';
+                console.error('Ошибка загрузки продуктов:', error);
             }
         }
 
-        // Фиксация активной иконки в футере на основе текущего URL
         window.onload = () => {
             loadCategories();
             loadProducts();
