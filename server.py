@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import json
+import telegram_bot  # Импорт бота
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +33,7 @@ DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
-# Создание таблиц
+# Создание таблиц (оставляем без изменений)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +98,7 @@ async def get_categories():
 # API для создания категории
 @app.post("/api/admin/create_category")
 async def create_category(name: str = Form(...), parent_id: str = Form(None)):
-    logger.info(f"Received data: name={name}, parent_id={parent_id}")  # Отладка
+    logger.info(f"Received data: name={name}, parent_id={parent_id}")
     try:
         if not name or not name.strip():
             raise HTTPException(status_code=422, detail="Название категории обязательно")
@@ -196,6 +197,8 @@ async def create_order(user_id: str = Form(...), products: str = Form(...), tota
         )
         conn.commit()
         logger.info(f"Order created for user_id={user_id}")
+        # Триггер уведомления через Telegram-бот
+        import telegram_bot  # Импорт для запуска бота
         return {"status": "success", "message": "Заказ создан"}
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
