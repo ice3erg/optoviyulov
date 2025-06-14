@@ -7,7 +7,7 @@ from PIL import Image
 import shutil
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/", StaticFiles(directory="static", html=True), name="static")  # Обслуживание index.html на /
 
 # Инициализация базы данных
 conn = sqlite3.connect('products.db', check_same_thread=False)
@@ -69,9 +69,9 @@ async def upload_product(name: str, description: str, price: float, category: st
     os.makedirs("static/uploads", exist_ok=True)
     with open(image_path, "wb") as buffer:
         shutil.copyfileobj(image.file, buffer)
-    # Сжатие изображения (опционально)
+    # Сжатие изображения
     img = Image.open(image_path)
-    img.thumbnail((100, 100))  # Уменьшение до 100x100 для оптимизации
+    img.thumbnail((100, 100))  # Уменьшение до 100x100
     img.save(image_path, optimize=True)
     # Добавление в базу
     cursor.execute('INSERT INTO products (name, description, price, image, category) VALUES (?, ?, ?, ?, ?)',
