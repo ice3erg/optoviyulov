@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Form, HTTPException
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import sqlite3
 import logging
+import os
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -9,9 +10,6 @@ logger = logging.getLogger("optulov")
 
 # Инициализация FastAPI
 app = FastAPI()
-
-# Монтируем статические файлы
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # Подключение к базе
 DB_PATH = "products.db"
@@ -28,6 +26,14 @@ cursor.execute('''
     )
 ''')
 conn.commit()
+
+# Ручное обслуживание статических файлов
+@app.get("/{file_path:path}")
+async def serve_static(file_path: str):
+    file_path = os.path.join("static", file_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Файл не найден")
 
 # Получение всех товаров
 @app.get("/api/products")
@@ -56,7 +62,7 @@ async def get_product(product_id: int):
         raise HTTPException(status_code=404, detail="Товар не найден")
     return {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
 
-# Загрузка товара (без изображений)
+# Загрузка товара
 @app.post("/api/admin/upload")
 async def upload_product(name: str = Form(...), description: str = Form(...), price: float = Form(...), category: str = Form(...)):
     try:
