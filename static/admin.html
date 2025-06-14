@@ -22,10 +22,9 @@
             width: 1.5rem;
             height: 1.5rem;
         }
-        .language-switch {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
+        .subcategory {
+            margin-left: 1rem;
+            font-style: italic;
         }
     </style>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -38,7 +37,9 @@
         <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить категорию</h2>
         <form id="category-form" class="mb-4">
             <input type="text" id="category-name" placeholder="Название категории" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
-            <input type="number" id="category-parent" placeholder="ID родительской категории (опционально)" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <select id="category-parent" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+                <option value="">Нет родителя (главная категория)</option>
+            </select>
             <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">Создать категорию</button>
         </form>
         <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить товар</h2>
@@ -52,6 +53,8 @@
             <input type="file" id="product-images" name="images" multiple class="w-full p-2 border border-blue-300 rounded-lg mb-2">
             <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">Добавить товар</button>
         </form>
+        <h2 class="text-xl font-semibold text-blue-800 mb-4">Список товаров</h2>
+        <div id="products-list" class="grid gap-4"></div>
     </div>
     <footer class="footer fixed bottom-0 w-full bg-blue-700 p-2 flex justify-around shadow-lg">
         <a href="/" class="text-white text-2xl hover:text-blue-200 transition duration-200">🏠</a>
@@ -65,8 +68,34 @@
         async function loadCategories() {
             const response = await fetch('/api/categories');
             const categories = await response.json();
-            const select = document.getElementById('product-category');
-            select.innerHTML = '<option value="">Выберите категорию</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            const parentSelect = document.getElementById('category-parent');
+            const productSelect = document.getElementById('product-category');
+            parentSelect.innerHTML = '<option value="">Нет родителя (главная категория)</option>';
+            productSelect.innerHTML = '<option value="">Выберите категорию</option>';
+
+            // Функция для построения иерархии
+            function buildHierarchy(cats, parentId = null, prefix = '') {
+                const filtered = cats.filter(c => c.parent_id === parentId);
+                filtered.forEach(cat => {
+                    parentSelect.innerHTML += `<option value="${cat.id}">${prefix}${cat.name}</option>`;
+                    productSelect.innerHTML += `<option value="${cat.id}">${prefix}${cat.name}</option>`;
+                    buildHierarchy(cats, cat.id, prefix + '— ');
+                });
+            }
+
+            buildHierarchy(categories);
+        }
+
+        async function loadProducts() {
+            const response = await fetch('/api/products');
+            const products = await response.json();
+            const container = document.getElementById('products-list');
+            container.innerHTML = products.map(p => `
+                <div class="bg-white p-4 rounded-lg shadow-md flex justify-between items-center">
+                    <span>${p.name} - ${p.price} ₽</span>
+                    <button onclick="deleteProduct(${p.id})" class="bg-red-600 text-white py-1 px-2 rounded hover:bg-red-700 transition duration-200">Удалить</button>
+                </div>
+            `).join('');
         }
 
         document.getElementById('category-form').addEventListener('submit', async (e) => {
@@ -111,13 +140,30 @@
                 document.getElementById('product-price').value = '';
                 document.getElementById('product-category').value = '';
                 document.getElementById('product-images').value = '';
+                loadProducts();
             } else {
-                alert('Ошибка добавления товара');
+                const error = await response.json();
+                alert(`Ошибка добавления товара: ${error.detail || 'Неизвестная ошибка'}`);
             }
         });
 
+        async function deleteProduct(productId) {
+            if (confirm('Вы уверены, что хотите удалить этот товар?')) {
+                const response = await fetch(`/api/admin/delete_product/${productId}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    alert('Товар удалён!');
+                    loadProducts();
+                } else {
+                    alert('Ошибка удаления товара');
+                }
+            }
+        }
+
         window.onload = () => {
             loadCategories();
+            loadProducts();
             if (window.Telegram?.WebApp) window.Telegram.WebApp.ready();
         };
     </script>
