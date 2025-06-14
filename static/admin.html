@@ -1,62 +1,67 @@
 <!DOCTYPE html>
-  <html lang="ru">
-  <head>
-      <meta charset="utf-8" />
-      <title>Админ-панель Оптовый Улов</title>
-      <style>
-          body { font-family: Arial, sans-serif; background: #ADD8E6; margin: 0; padding: 20px; }
-          .form-group { margin-bottom: 15px; }
-          label { display: block; margin-bottom: 5px; }
-          input, select, button { padding: 8px; width: 100%; max-width: 300px; }
-          button { background: #1E90FF; color: white; border: none; cursor: pointer; }
-          button:hover { background: #104E8B; }
-      </style>
-  </head>
-  <body>
-      <h2>Добавить товар</h2>
-      <form id="upload-form" enctype="multipart/form-data">
-          <div class="form-group">
-              <label for="name">Название:</label>
-              <input type="text" id="name" name="name" required>
-          </div>
-          <div class="form-group">
-              <label for="description">Описание:</label>
-              <input type="text" id="description" name="description" required>
-          </div>
-          <div class="form-group">
-              <label for="price">Цена:</label>
-              <input type="number" id="price" name="price" step="0.01" required>
-          </div>
-          <div class="form-group">
-              <label for="category">Категория:</label>
-              <select id="category" name="category" required>
-                  <option value="krenki">Кренки</option>
-                  <option value="minnow">Минноу</option>
-                  <option value="poppers">Попперы</option>
-                  <option value="casting">Кастинговые</option>
-                  <option value="telescopic">Телескопические</option>
-              </select>
-          </div>
-          <div class="form-group">
-              <label for="image">Фото:</label>
-              <input type="file" id="image" name="image" accept="image/*" required>
-          </div>
-          <button type="submit">Добавить</button>
-      </form>
-      <div id="result"></div>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <title>Админ-панель Оптовый Улов</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ADD8E6; margin: 0; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select, button { padding: 8px; width: 100%; max-width: 300px; }
+        button { background: #1E90FF; color: white; border: none; cursor: pointer; }
+        button:hover { background: #104E8B; }
+    </style>
+</head>
+<body>
+    <h2>Добавить товар</h2>
+    <form id="upload-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Название:</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Описание:</label>
+            <input type="text" id="description" name="description" required>
+        </div>
+        <div class="form-group">
+            <label for="price">Цена:</label>
+            <input type="number" id="price" name="price" step="0.01" required>
+        </div>
+        <div class="form-group">
+            <label for="category">Категория:</label>
+            <select id="category" name="category" required>
+                <option value="krenki">Кренки</option>
+                <option value="minnow">Минноу</option>
+                <option value="poppers">Попперы</option>
+                <option value="casting">Кастинговые</option>
+                <option value="telescopic">Телескопические</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="image">Фото:</label>
+            <input type="file" id="image" name="image" accept="image/*" required>
+        </div>
+        <button type="submit">Добавить</button>
+    </form>
+    <div id="result"></div>
 
-      <script>
-          const form = document.getElementById('upload-form');
-          form.addEventListener('submit', async (e) => {
-              e.preventDefault();
-              const formData = new FormData(form);
-              const response = await fetch('/api/admin/upload', {
-                  method: 'POST',
-                  body: formData
-              });
-              const result = await response.json();
-              document.getElementById('result').innerHTML = `Статус: ${result.status} | Изображение: ${result.image_path}`;
-          });
-      </script>
-  </body>
-  </html>
+    <script>
+        const form = document.getElementById('upload-form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            try {
+                const response = await fetch('/api/admin/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error('Ошибка сервера');
+                const result = await response.json();
+                document.getElementById('result').innerHTML = `Статус: ${result.status || 'ошибка'} | Изображение: ${result.image_path || 'не указано'}`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `Ошибка: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
