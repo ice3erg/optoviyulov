@@ -1,35 +1,232 @@
+
 <!DOCTYPE html>
 <html lang="ru">
-<head>
+  <head>
     <meta charset="utf-8" />
     <title>Оптовый Улов</title>
+    <meta name="description" content="Оптовый Улов - интернет-магазин рыболовных товаров с акцентом на качество и удобство." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-title" content="Оптовый Улов" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Оптовый Улов" />
+    <meta name="application-name" content="Оптовый Улов" />
+    <meta name="theme-color" content="#1e40af" />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #F0F8FF; padding: 20px; }
-        .product-item { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #fff; }
+      /* Кастомные стили для анимаций и специфичных элементов */
+      .fade-in {
+        animation: fadeIn 0.3s ease-in;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .header::before {
+        content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231e40af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-2v-2h2v2zm0-4h-2V7h2v6zm4 4h-2v-2h2v2zm0-4h-2V7h2v6z"/><path d="M17 10l-5-5-5 5h10z"/></svg>');
+        position: absolute;
+        left: 1rem;
+        top: 1rem;
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+      .profile-modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 50;
+      }
+      .profile-modal img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+      }
     </style>
-</head>
-<body>
-    <h2>Каталог товаров</h2>
-    <div id="products"></div>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body class="bg-gray-100 font-sans text-gray-800">
+    <header class="header bg-blue-700 text-white text-2xl font-bold p-4 relative shadow-md">
+      Оптовый Улов
+    </header>
+    <div class="tabs flex justify-around bg-blue-500 p-1 rounded-t-lg shadow-md">
+      <button class="tablink w-full py-2 text-white font-semibold rounded-t-lg active" onclick="openTab('catalog')">Каталог</button>
+    </div>
+    <div class="search mx-4 mt-4 mb-2" id="search-catalog">
+      <div class="flex items-center">
+        <input type="text" id="search" placeholder="Поиск товаров..." class="w-full p-2 border border-blue-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button onclick="loadProducts()" class="bg-blue-600 text-white p-2 rounded-r-lg hover:bg-blue-700 transition duration-200">
+          🔍
+        </button>
+      </div>
+      <div class="search-error text-red-500 mt-1 text-sm" id="search-error">Товар не найден!</div>
+    </div>
+    <div class="categories mx-4 mb-4" id="categories-catalog">
+      <select id="category" onchange="loadProducts()" class="w-full p-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="">Все категории</option>
+        <optgroup label="Воблеры">
+          <option value="krenki">Кренки</option>
+          <option value="minnow">Минноу</option>
+          <option value="poppers">Попперы</option>
+        </optgroup>
+        <optgroup label="Спиннинги">
+          <option value="casting">Кастинговые</option>
+          <option value="telescopic">Телескопические</option>
+        </optgroup>
+      </select>
+    </div>
+    <div id="catalog" class="active">
+      <div id="products" class="grid gap-4 p-4"></div>
+    </div>
+    <footer class="footer fixed bottom-0 w-full bg-blue-700 p-2 flex justify-around shadow-lg">
+      <a href="#" onclick="openCart()" class="text-white text-2xl hover:text-blue-200 transition duration-200">🛒</a>
+      <a href="#" onclick="showProfile()" class="text-white text-2xl hover:text-blue-200 transition duration-200">👤</a>
+    </footer>
+    <div class="store-info text-center text-blue-800 mt-4">
+      <p class="text-sm">Оптовый Улов - лучший выбор для рыбалки!</p>
+      <p class="text-sm">Контакты: @OptUlovSupport | Тел: +7 (999) 123-45-67</p>
+      <p class="text-xs text-gray-600">Последнее обновление: 14 июня 2025, 08:29 AM PDT</p>
+    </div>
+    <div id="profile-modal" class="profile-modal">
+      <img id="profile-avatar" src="" alt="Аватар">
+      <p id="profile-name" class="text-lg font-semibold text-blue-800"></p>
+      <button onclick="closeProfile()" class="mt-4 bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 transition duration-200">Закрыть</button>
+    </div>
+    <div id="cart-section" class="hidden fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-40">
+      <div class="cart bg-white rounded-lg shadow-lg p-4 w-11/12 max-w-md">
+        <h2 class="text-xl font-bold text-blue-800 mb-4">Корзина</h2>
+        <div id="cart-items" class="cart-items"></div>
+        <div class="total text-lg font-semibold text-blue-800 mt-4" id="total">Общая стоимость: 0 ₽</div>
+        <button onclick="sendOrder()" class="w-full bg-blue-600 text-white py-2 rounded-lg mt-4 hover:bg-blue-700 transition duration-200">Отправить заказ</button>
+        <button onclick="closeCart()" class="w-full bg-gray-300 text-gray-800 py-2 rounded-lg mt-2 hover:bg-gray-400 transition duration-200">Закрыть</button>
+      </div>
+    </div>
 
     <script>
-        async function loadProducts() {
-            try {
-                const response = await fetch('/api/products');
-                if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-                const products = await response.json();
-                const productsDiv = document.getElementById('products');
-                productsDiv.innerHTML = products.length ? products.map(p => `
-                    <div class="product-item">
-                        <strong>${p.name}</strong> (${p.category}) - ${p.price} руб.<br>
-                        ${p.description}
-                    </div>
-                `).join('') : 'Товары пока не добавлены.';
-            } catch (error) {
-                document.getElementById('products').innerHTML = `Ошибка загрузки: ${error.message}`;
-            }
+      let cart = [];
+
+      function openTab(tabName) {
+        document.querySelectorAll('.tablink').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('catalog').classList.remove('active');
+        document.querySelector(`[onclick="openTab('${tabName}')"]`).classList.add('active');
+        if (tabName === 'catalog') {
+          document.getElementById('catalog').classList.add('active');
+          document.getElementById('search-catalog').style.display = 'block';
+          document.getElementById('categories-catalog').style.display = 'block';
         }
-        window.onload = loadProducts;
+      }
+
+      function openCart() {
+        document.getElementById('cart-section').classList.remove('hidden');
+        updateCart();
+      }
+
+      function closeCart() {
+        document.getElementById('cart-section').classList.add('hidden');
+      }
+
+      async function loadProducts() {
+        const category = document.getElementById('category').value;
+        const search = document.getElementById('search').value;
+        try {
+          const response = await fetch(`/api/products?category=${category}&search=${search}`);
+          if (!response.ok) throw new Error('Товары не найдены');
+          const products = await response.json();
+          const productsContainer = document.getElementById('products');
+          productsContainer.innerHTML = '';
+          if (products.length === 0) {
+            productsContainer.innerHTML = '<p class="text-gray-500">Нет товаров для отображения.</p>';
+          } else {
+            productsContainer.classList.add('fade-in');
+            products.forEach(product => {
+              const div = document.createElement('div');
+              div.className = 'product bg-white rounded-lg shadow-md p-4 flex items-center space-x-4';
+              div.innerHTML = `
+                <img src="${product.image}" alt="${product.name}" class="w-20 h-20 object-cover rounded">
+                <div class="flex-1">
+                  <h3 class="text-lg font-semibold text-blue-800">${product.name}</h3>
+                  <p class="text-gray-600">${product.description}</p>
+                  <p class="text-gray-800">Цена: ${product.price} ₽</p>
+                </div>
+                <button onclick="addToCart(${product.id})" class="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 transition duration-200">Купить</button>
+              `;
+              productsContainer.appendChild(div);
+            });
+          }
+          document.getElementById('search-error').style.display = 'none';
+        } catch (error) {
+          document.getElementById('products').innerHTML = '<p class="text-red-500">Ошибка загрузки товаров.</p>';
+          document.getElementById('search-error').style.display = 'block';
+        }
+      }
+
+      function addToCart(productId) {
+        fetch(`/api/products/${productId}`)
+          .then(response => response.json())
+          .then(product => {
+            cart.push(product);
+            alert(`${product.name} добавлен в корзину!`);
+            updateCart();
+          })
+          .catch(error => alert('Ошибка при добавлении товара в корзину.'));
+      }
+
+      function updateCart() {
+        const cartItemsContainer = document.getElementById('cart-items');
+        cartItemsContainer.innerHTML = '';
+        let total = 0;
+        cart.forEach((item, index) => {
+          total += item.price;
+          const div = document.createElement('div');
+          div.className = 'flex justify-between items-center py-2 border-b border-gray-200';
+          div.innerHTML = `${item.name} - ${item.price} ₽ <button onclick="removeFromCart(${index})" class="text-red-500 hover:text-red-700">Удалить</button>`;
+          cartItemsContainer.appendChild(div);
+        });
+        document.getElementById('total').textContent = `Общая стоимость: ${total} ₽`;
+      }
+
+      function removeFromCart(index) {
+        cart.splice(index, 1);
+        updateCart();
+      }
+
+      function sendOrder() {
+        if (cart.length === 0) {
+          alert('Корзина пуста!');
+          return;
+        }
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        const orderDetails = `Заказ от ${user.first_name} ${user.last_name || ''} (ID: ${user.id}):\n` +
+          cart.map(item => `- ${item.name}: ${item.price} ₽`).join('\n') +
+          `\nОбщая стоимость: ${cart.reduce((sum, item) => sum + item.price, 0)} ₽`;
+        alert(`Заказ отправлен!\n${orderDetails} (Для теста)`);
+        cart = [];
+        updateCart();
+        closeCart();
+      }
+
+      function showProfile() {
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        const modal = document.getElementById('profile-modal');
+        document.getElementById('profile-name').textContent = `${user.first_name} ${user.last_name || ''}`;
+        document.getElementById('profile-avatar').src = user.photo_url || 'https://via.placeholder.com/100';
+        modal.style.display = 'block';
+      }
+
+      function closeProfile() {
+        document.getElementById('profile-modal').style.display = 'none';
+      }
+
+      window.Telegram.WebApp.ready();
+      loadProducts();
     </script>
-</body>
+  </body>
 </html>
