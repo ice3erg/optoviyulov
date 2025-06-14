@@ -5,7 +5,7 @@ import logging
 import asyncio
 import threading
 from telegram import Bot
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +15,8 @@ logger = logging.getLogger("telegram_bot")
 TELEGRAM_BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
 SELLER_CHAT_ID = os.getenv("984066798")
 
-logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={BOT_TOKEN}, SELLER_CHAT_ID={SELLER_CHAT_ID}")
+# Логирование полученных переменных
+logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={'установлен' if TELEGRAM_BOT_TOKEN else 'не установлен'}, SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}")
 
 # Подключение к базе данных
 DB_PATH = "products.db"
@@ -38,7 +39,7 @@ if BOT_TOKEN and SELLER_CHAT_ID:
 else:
     logger.warning(
         f"Telegram бот не запущен: "
-        f"TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, "
+        f"TELEGRAM_BOT_TOKEN={'установлен' if TELEGRAM_BOT_TOKEN else 'не установлен'}, "
         f"SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}"
     )
 
@@ -87,7 +88,5 @@ def run_bot_in_background():
     loop.run_until_complete(start_bot())
     loop.run_forever()
 
-if __name__ == "__main__":
-    run_bot_in_background()
 if __name__ == "__main__":
     run_bot_in_background()
