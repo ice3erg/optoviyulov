@@ -3,107 +3,123 @@
 <head>
     <meta charset="utf-8" />
     <title>Админ-панель</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1e40af" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #add8e6; margin: 0; padding: 20px; }
-        .form-group { margin-bottom: 15px; max-width: 300px; }
-        label { display: block; margin-bottom: 5px; }
-        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { background: #1e90ff; color: white; border: none; cursor: pointer; }
-        button:hover { background: #104e8b; }
-        #result { margin-top: 15px; }
-        .category-section { margin-bottom: 20px; }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .header::before {
+            content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231e40af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-2v-2h2v2zm0-4h-2V7h2v6zm4 4h-2v-2h2v2zm0-4h-2V7h2v6z"/><path d="M17 10l-5-5-5 5h10z"/></svg>');
+            position: absolute;
+            left: 1rem;
+            top: 1rem;
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+        .language-switch {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
     </style>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body>
-    <h2>Админ-панель Оптовый Улов</h2>
-
-    <div class="category-section">
-        <h3>Создать категорию</h3>
-        <form id="category-form">
-            <div class="form-group">
-                <label for="category-name">Название категории:</label>
-                <input type="text" id="category-name" name="category-name" required>
-            </div>
-            <div class="form-group">
-                <label for="parent-id">Родительская категория (опционально):</label>
-                <select id="parent-id" name="parent-id">
-                    <option value="">Нет</option>
-                </select>
-            </div>
-            <button type="submit">Создать категорию</button>
+<body class="bg-gray-100 font-sans text-gray-800">
+    <header class="header bg-blue-700 text-white text-2xl font-bold p-4 relative shadow-md">
+        Админ-панель
+    </header>
+    <div class="mx-4 mt-4 p-4 bg-white rounded-lg shadow-md">
+        <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить категорию</h2>
+        <form id="category-form" class="mb-4">
+            <input type="text" id="category-name" placeholder="Название категории" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <input type="number" id="category-parent" placeholder="ID родительской категории (опционально)" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">Создать категорию</button>
         </form>
-        <div id="category-result"></div>
+        <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить товар</h2>
+        <form id="product-form" class="mb-4" enctype="multipart/form-data">
+            <input type="text" id="product-name" placeholder="Название товара" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <textarea id="product-description" placeholder="Описание" class="w-full p-2 border border-blue-300 rounded-lg mb-2"></textarea>
+            <input type="number" id="product-price" step="0.01" placeholder="Цена" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <select id="product-category" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+                <option value="">Выберите категорию</option>
+            </select>
+            <input type="file" id="product-images" name="images" multiple class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">Добавить товар</button>
+        </form>
     </div>
-
-    <form id="upload-form">
-        <div class="form-group">
-            <label for="name">Название:</label>
-            <input type="text" id="name" name="name" required>
-        </div>
-        <div class="form-group">
-            <label for="description">Описание:</label>
-            <input type="text" id="description" name="description" required>
-        </div>
-        <div class="form-group">
-            <label for="price">Цена:</label>
-            <input type="number" id="price" name="price" step="0.01" required>
-        </div>
-        <div class="form-group">
-            <label for="category-id">Категория:</label>
-            <select id="category-id" name="category-id" required></select>
-        </div>
-        <div class="form-group">
-            <label for="images">Изображения (множественный выбор):</label>
-            <input type="file" id="images" name="images" multiple>
-        </div>
-        <button type="submit">Добавить товар</button>
-    </form>
-    <div id="result"></div>
+    <footer class="footer fixed bottom-0 w-full bg-blue-700 p-2 flex justify-around shadow-lg">
+        <a href="/" class="text-white text-2xl hover:text-blue-200 transition duration-200">🏠</a>
+    </footer>
+    <div class="store-info text-center text-blue-800 mt-4">
+        <p class="text-sm">Оптовый Улов - админ-панель</p>
+        <p class="text-xs text-gray-600">Последнее обновление: 14 июня 2025, 08:29 AM PDT</p>
+    </div>
 
     <script>
         async function loadCategories() {
-            const categorySelect = document.getElementById('category-id');
-            const parentSelect = document.getElementById('parent-id');
             const response = await fetch('/api/categories');
             const categories = await response.json();
-            categorySelect.innerHTML = '<option value="">Выберите категорию</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-            parentSelect.innerHTML = '<option value="">Нет</option>' + categories.filter(c => !c.parent_id).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            const select = document.getElementById('product-category');
+            select.innerHTML = '<option value="">Выберите категорию</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
         }
 
         document.getElementById('category-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = new URLSearchParams(new FormData(e.target));
-            try {
-                const response = await fetch('/api/categories', { method: 'POST', body: data });
-                if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-                const result = await response.json();
-                document.getElementById('category-result').innerHTML = result.message;
-                e.target.reset();
+            const name = document.getElementById('category-name').value;
+            const parentId = document.getElementById('category-parent').value || null;
+            const response = await fetch('/api/admin/create_category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ name, parent_id: parentId })
+            });
+            if (response.ok) {
+                alert('Категория создана!');
+                document.getElementById('category-name').value = '';
+                document.getElementById('category-parent').value = '';
                 loadCategories();
-            } catch (error) {
-                document.getElementById('category-result').innerHTML = `Ошибка: ${error.message}`;
+            } else {
+                alert('Ошибка создания категории');
             }
         });
 
-        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+        document.getElementById('product-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const images = document.getElementById('images').files;
+            const formData = new FormData();
+            formData.append('name', document.getElementById('product-name').value);
+            formData.append('description', document.getElementById('product-description').value);
+            formData.append('price', document.getElementById('product-price').value);
+            formData.append('category_id', document.getElementById('product-category').value);
+            const images = document.getElementById('product-images').files;
             for (let i = 0; i < images.length; i++) {
                 formData.append('images', images[i]);
             }
-            try {
-                const response = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-                if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
-                const result = await response.json();
-                document.getElementById('result').innerHTML = `Статус: ${result.status} | Сообщение: ${result.message}`;
-                e.target.reset();
-            } catch (error) {
-                document.getElementById('result').innerHTML = `Ошибка: ${error.message}`;
+
+            const response = await fetch('/api/admin/upload', {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                alert('Товар добавлен!');
+                document.getElementById('product-name').value = '';
+                document.getElementById('product-description').value = '';
+                document.getElementById('product-price').value = '';
+                document.getElementById('product-category').value = '';
+                document.getElementById('product-images').value = '';
+            } else {
+                alert('Ошибка добавления товара');
             }
         });
 
-        window.onload = loadCategories;
+        window.onload = () => {
+            loadCategories();
+            if (window.Telegram?.WebApp) window.Telegram.WebApp.ready();
+        };
     </script>
 </body>
 </html>
