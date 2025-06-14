@@ -105,6 +105,7 @@
                 alert('Название категории обязательно!');
                 return;
             }
+            console.log('Отправка данных:', { name, parent_id: parentId }); // Отладка
             const response = await fetch('/api/admin/create_category', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
