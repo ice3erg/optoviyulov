@@ -4,14 +4,13 @@ import sqlite3
 import logging
 import os
 
-# Настройка логирования
+# Настройка логирования для диагностики
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("optulov")
 
-# Инициализация FastAPI
 app = FastAPI()
 
-# Подключение к базе
+# Подключение к базе данных
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
@@ -27,7 +26,7 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Корневой путь перенаправляет на admin.html
+# Корневой путь для админ-панели
 @app.get("/")
 async def root():
     return FileResponse("static/admin.html", media_type="text/html")
@@ -41,9 +40,10 @@ async def serve_static(file_path: str):
         return FileResponse(file_path, media_type=media_type)
     raise HTTPException(status_code=404, detail="Файл не найден")
 
-# Получение всех товаров
+# Получение списка товаров
 @app.get("/api/products")
 async def get_products(category: str = '', search: str = ''):
+    logger.info(f"Запрос к /api/products: category={category}, search={search}")
     query = 'SELECT * FROM products WHERE 1=1'
     params = []
     if category:
@@ -52,36 +52,31 @@ async def get_products(category: str = '', search: str = ''):
     if search:
         query += ' AND name LIKE ?'
         params.append(f"%{search}%")
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    return [
-        {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
-        for row in rows
-    ]
+    try:
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        logger.info(f"Найдено товаров: {len(rows)}")
+        return [
+            {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
+            for row in rows
+        ] if rows else []
+    except Exception as e:
+        logger.error(f"Ошибка базы данных: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {e}")
 
-# Получение одного товара
-@app.get("/api/products/{product_id}")
-async def get_product(product_id: int):
-    cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-    row = cursor.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Товар не найден")
-    return {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
-
-# Загрузка товара
+# Добавление товара через админ-панель
 @app.post("/api/admin/upload")
 async def upload_product(name: str = Form(...), description: str = Form(...), price: float = Form(...), category: str = Form(...)):
     try:
-        logger.info(f"Получен запрос: name={name}, description={description}, price={price}, category={category}")
         cursor.execute(
             'INSERT INTO products (name, description, price, category) VALUES (?, ?, ?, ?)',
             (name, description, price, category)
         )
         conn.commit()
-        logger.info("Товар добавлен в базу данных")
-        return {"status": "success", "message": "Товар добавлен", "image_path": "/static/placeholder.jpg"}
+        logger.info(f"Товар '{name}' успешно добавлен")
+        return {"status": "success", "message": "Товар добавлен"}
     except Exception as e:
-        logger.error(f"Ошибка загрузки: {e}")
+        logger.error(f"Ошибка добавления товара: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка загрузки: {e}")
 
 if __name__ == "__main__":
