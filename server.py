@@ -1,16 +1,16 @@
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import sqlite3
 import logging
-import os
 
-# Настройка логирования для диагностики
+# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("optulov")
 
 app = FastAPI()
 
-# Подключение к базе данных
+# Database connection
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
@@ -26,24 +26,23 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Корневой путь для админ-панели
+# Serve index.html at root
 @app.get("/")
-async def root():
-    return FileResponse("static/admin.html", media_type="text/html")
+async def serve_index():
+    return FileResponse("static/index.html")
 
-# Обслуживание статических файлов
-@app.get("/{file_path:path}")
-async def serve_static(file_path: str):
-    file_path = os.path.join("static", file_path)
-    if os.path.isfile(file_path):
-        media_type = "text/html" if file_path.endswith(".html") else "application/octet-stream"
-        return FileResponse(file_path, media_type=media_type)
-    raise HTTPException(status_code=404, detail="Файл не найден")
+# Serve admin.html at /admin
+@app.get("/admin")
+async def serve_admin():
+    return FileResponse("static/admin.html")
 
-# Получение списка товаров
+# Mount static files at /static
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# API to get products
 @app.get("/api/products")
 async def get_products(category: str = '', search: str = ''):
-    logger.info(f"Запрос к /api/products: category={category}, search={search}")
+    logger.info(f"Fetching products with category='{category}', search='{search}'")
     query = 'SELECT * FROM products WHERE 1=1'
     params = []
     if category:
@@ -52,19 +51,16 @@ async def get_products(category: str = '', search: str = ''):
     if search:
         query += ' AND name LIKE ?'
         params.append(f"%{search}%")
-    try:
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        logger.info(f"Найдено товаров: {len(rows)}")
-        return [
-            {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
-            for row in rows
-        ] if rows else []
-    except Exception as e:
-        logger.error(f"Ошибка базы данных: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {e}")
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    products = [
+        {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "image": row[4], "category": row[5]}
+        for row in rows
+    ]
+    logger.info(f"Returning {len(products)} products")
+    return products
 
-# Добавление товара через админ-панель
+# API to add a product
 @app.post("/api/admin/upload")
 async def upload_product(name: str = Form(...), description: str = Form(...), price: float = Form(...), category: str = Form(...)):
     try:
@@ -73,11 +69,11 @@ async def upload_product(name: str = Form(...), description: str = Form(...), pr
             (name, description, price, category)
         )
         conn.commit()
-        logger.info(f"Товар '{name}' успешно добавлен")
+        logger.info(f"Product '{name}' added successfully")
         return {"status": "success", "message": "Товар добавлен"}
     except Exception as e:
-        logger.error(f"Ошибка добавления товара: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка загрузки: {e}")
+        logger.error(f"Error adding product: {str(e)}")
+        raise HTTPException(status_code=500, detail="Ошибка сервера")
 
 if __name__ == "__main__":
     import uvicorn
