@@ -1,35 +1,55 @@
-import os
 import json
-import sqlite3
 import logging
+import sqlite3
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
 )
 
+# Логирование
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram_bot")
 
+# Токен и дефолтный админ (int)
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"
-DEFAULT_ADMIN_ID = 984066798  # int, не строка
+DEFAULT_ADMIN_ID = 984066798
 
+# Подключение к БД
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
-# Таблицы
-cursor.execute('''CREATE TABLE IF NOT EXISTS products (
+# Создаем таблицы, если нет
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     price REAL NOT NULL,
     category TEXT
-)''')
+)
+''')
 
-cursor.execute('''CREATE TABLE IF NOT EXISTS admins (
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS admins (
     chat_id INTEGER PRIMARY KEY
-)''')
+)
+''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    total_price REAL NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    products TEXT NOT NULL
+)
+''')
+
+conn.commit()
+
+# Добавляем дефолтного админа
 cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (DEFAULT_ADMIN_ID,))
 conn.commit()
 
@@ -42,7 +62,7 @@ def is_admin(chat_id: int) -> bool:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if not is_admin(chat_id):
-        await update.message.reply_text("У вас нет доступа к этому боту.")
+        await update.message.reply_text("❌ У вас нет доступа к этому боту.")
         return
 
     keyboard = [
@@ -61,7 +81,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = query.message.chat.id
 
     if not is_admin(chat_id):
-        await query.edit_message_text("У вас нет доступа к этому боту.")
+        await query.edit_message_text("❌ У вас нет доступа к этому боту.")
         return
 
     if query.data == 'open_admin':
@@ -86,7 +106,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message = "Список заказов пуст."
         await query.edit_message_text(message)
 
-# Текстовые ответы (например, добавление админа)
+# Обработка текстовых сообщений (например, ввод chat_id для добавления админа)
 async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if not is_admin(chat_id):
@@ -100,16 +120,16 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if mode == 'add_admin':
         try:
-            new_id = int(text)
-            cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (new_id,))
+            new_admin_id = int(text)
+            cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (new_admin_id,))
             conn.commit()
-            await update.message.reply_text(f"✅ Админ {new_id} добавлен.")
+            await update.message.reply_text(f"✅ Админ {new_admin_id} добавлен.")
         except Exception as e:
-            await update.message.reply_text(f"Ошибка: {e}")
+            await update.message.reply_text(f"❌ Ошибка: {e}")
         finally:
             context.user_data.pop('mode', None)
 
-# Уведомление всем админам о заказе
+# Отправка уведомления всем админам о новом заказе
 async def send_order_notification(order_data):
     try:
         cursor.execute("SELECT chat_id FROM admins")
@@ -125,10 +145,11 @@ async def send_order_notification(order_data):
         )
         for admin_id in admin_ids:
             await bot.send_message(chat_id=admin_id, text=message)
+        logger.info(f"Уведомление о заказе {order_data['id']} отправлено админам")
     except Exception as e:
-        logger.error(f"Ошибка отправки уведомления: {str(e)}")
+        logger.error(f"Ошибка отправки уведомления: {e}")
 
-# Основной запуск
+# Инициализация бота и приложения
 bot = Bot(token=BOT_TOKEN)
 application = Application.builder().token(BOT_TOKEN).build()
 
@@ -136,6 +157,8 @@ async def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_input))
+
+    logger.info("Запуск Telegram бота...")
     await application.run_polling()
 
 if __name__ == "__main__":
