@@ -36,7 +36,7 @@
     <div class="mx-4 mt-4 p-4 bg-white rounded-lg shadow-md">
         <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить категорию</h2>
         <form id="category-form" class="mb-4">
-            <input type="text" id="category-name" placeholder="Название категории" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <input type="text" id="category-name" placeholder="Название категории" required class="w-full p-2 border border-blue-300 rounded-lg mb-2">
             <select id="category-parent" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
                 <option value="">Нет родителя (главная категория)</option>
             </select>
@@ -44,9 +44,9 @@
         </form>
         <h2 class="text-xl font-semibold text-blue-800 mb-4">Добавить товар</h2>
         <form id="product-form" class="mb-4" enctype="multipart/form-data">
-            <input type="text" id="product-name" placeholder="Название товара" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
-            <textarea id="product-description" placeholder="Описание" class="w-full p-2 border border-blue-300 rounded-lg mb-2"></textarea>
-            <input type="number" id="product-price" step="0.01" placeholder="Цена" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <input type="text" id="product-name" placeholder="Название товара" required class="w-full p-2 border border-blue-300 rounded-lg mb-2">
+            <textarea id="product-description" placeholder="Описание" required class="w-full p-2 border border-blue-300 rounded-lg mb-2"></textarea>
+            <input type="number" id="product-price" step="0.01" placeholder="Цена" required class="w-full p-2 border border-blue-300 rounded-lg mb-2">
             <select id="product-category" class="w-full p-2 border border-blue-300 rounded-lg mb-2">
                 <option value="">Выберите категорию</option>
             </select>
@@ -73,7 +73,6 @@
             parentSelect.innerHTML = '<option value="">Нет родителя (главная категория)</option>';
             productSelect.innerHTML = '<option value="">Выберите категорию</option>';
 
-            // Функция для построения иерархии
             function buildHierarchy(cats, parentId = null, prefix = '') {
                 const filtered = cats.filter(c => c.parent_id === parentId);
                 filtered.forEach(cat => {
@@ -100,8 +99,12 @@
 
         document.getElementById('category-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('category-name').value;
+            const name = document.getElementById('category-name').value.trim();
             const parentId = document.getElementById('category-parent').value || null;
+            if (!name) {
+                alert('Название категории обязательно!');
+                return;
+            }
             const response = await fetch('/api/admin/create_category', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -113,18 +116,27 @@
                 document.getElementById('category-parent').value = '';
                 loadCategories();
             } else {
-                alert('Ошибка создания категории');
+                const error = await response.json();
+                alert(`Ошибка создания категории: ${error.detail || 'Неизвестная ошибка'}`);
             }
         });
 
         document.getElementById('product-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData();
-            formData.append('name', document.getElementById('product-name').value);
-            formData.append('description', document.getElementById('product-description').value);
-            formData.append('price', document.getElementById('product-price').value);
-            formData.append('category_id', document.getElementById('product-category').value);
+            const name = document.getElementById('product-name').value.trim();
+            const description = document.getElementById('product-description').value.trim();
+            const price = document.getElementById('product-price').value;
+            const categoryId = document.getElementById('product-category').value;
             const images = document.getElementById('product-images').files;
+            if (!name || !description || !price || !categoryId) {
+                alert('Все поля, кроме изображений, обязательны!');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('description', description);
+            formData.append('price', price);
+            formData.append('category_id', categoryId);
             for (let i = 0; i < images.length; i++) {
                 formData.append('images', images[i]);
             }
