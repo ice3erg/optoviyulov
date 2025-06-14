@@ -14,7 +14,7 @@
 </head>
 <body>
     <h2>Добавить товар</h2>
-    <form id="upload-form" enctype="multipart/form-data">
+    <form id="upload-form">
         <div class="form-group">
             <label for="name">Название:</label>
             <input type="text" id="name" name="name" required>
@@ -37,10 +37,6 @@
                 <option value="telescopic">Телескопические</option>
             </select>
         </div>
-        <div class="form-group">
-            <label for="image">Фото:</label>
-            <input type="file" id="image" name="image" accept="image/*" required>
-        </div>
         <button type="submit">Добавить</button>
     </form>
     <div id="result"></div>
@@ -49,15 +45,18 @@
         const form = document.getElementById('upload-form');
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(form);
+            const data = new URLSearchParams(new FormData(form));
             try {
                 const response = await fetch('/api/admin/upload', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: data
                 });
                 if (!response.ok) throw new Error(`Ошибка сервера: ${response.status}`);
                 const result = await response.json();
-                document.getElementById('result').innerHTML = `Статус: ${result.status || 'ошибка'} | Изображение: ${result.image_path || 'не указано'}`;
+                document.getElementById('result').innerHTML = `Статус: ${result.status || 'ошибка'} | Сообщение: ${result.message || 'не указано'}`;
             } catch (error) {
                 document.getElementById('result').innerHTML = `Ошибка: ${error.message}`;
             }
