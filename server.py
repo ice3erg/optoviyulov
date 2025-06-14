@@ -97,13 +97,16 @@ async def get_categories():
 # API для создания категории
 @app.post("/api/admin/create_category")
 async def create_category(name: str = Form(...), parent_id: int = Form(None)):
+    logger.info(f"Received data: name={name}, parent_id={parent_id}")  # Отладка
     try:
-        cursor.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name, parent_id))
+        if not name or not name.strip():
+            raise HTTPException(status_code=422, detail="Название категории обязательно")
+        cursor.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name.strip(), parent_id))
         conn.commit()
         return {"status": "success", "message": "Категория создана"}
     except Exception as e:
         logger.error(f"Error creating category: {str(e)}")
-        raise HTTPException(status_code=500, detail="Ошибка сервера")
+        raise HTTPException(status_code=422, detail="Ошибка создания категории")
 
 # API для получения товаров
 @app.get("/api/products")
@@ -205,4 +208,4 @@ async def get_orders(user_id: str = None):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=10000)  # Убедимся, что порт совпадает с настройками Render
