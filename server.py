@@ -72,6 +72,7 @@ async def get_product(product_id: int):
 @app.post('/api/admin/upload')
 async def upload_product(name: str, description: str, price: float, category: str, image: UploadFile = File(...)):
     try:
+        print(f"Получен запрос: name={name}, description={description}, price={price}, category={category}, filename={image.filename}")
         # Сохранение изображения
         image_path = f"static/uploads/{image.filename}"
         os.makedirs("static/uploads", exist_ok=True)
@@ -87,6 +88,7 @@ async def upload_product(name: str, description: str, price: float, category: st
         conn.commit()
         return {"status": "success", "image_path": f"/static/uploads/{image.filename}"}
     except Exception as e:
+        print(f"Ошибка: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка загрузки: {e}")
 
 if __name__ == "__main__":
