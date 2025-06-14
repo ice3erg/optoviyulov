@@ -1,10 +1,11 @@
 import os
 import json
 import sqlite3
+import logging
+import asyncio
+import threading
 from telegram import Bot
 from telegram.ext import Application
-import asyncio
-import logging
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +13,15 @@ logger = logging.getLogger("telegram_bot")
 
 # Токен бота и ID чата продавца из переменных окружения
 BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
-SELLER_CHAT_ID = os.getenv("SELLER_CHAT_ID")  # ID чата продавца
+SELLER_CHAT_ID = os.getenv("SELLER_CHAT_ID")
+
+# Проверка переменных окружения
+if not BOT_TOKEN:
+    logger.error("TELEGRAM_BOT_TOKEN не установлен")
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
+if not SELLER_CHAT_ID:
+    logger.error("SELLER_CHAT_ID не установлен")
+    raise ValueError("SELLER_CHAT_ID не установлен")
 
 # Подключение к базе данных
 DB_PATH = "products.db"
@@ -20,8 +29,13 @@ conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
 # Инициализация бота
-bot = Bot(token=BOT_TOKEN)
-application = Application.builder().token(BOT_TOKEN).build()
+try:
+    bot = Bot(token=BOT_TOKEN)
+    application = Application.builder().token(BOT_TOKEN).build()
+    logger.info("Telegram бот успешно инициализирован")
+except Exception as e:
+    logger.error(f"Ошибка инициализации бота: {str(e)}")
+    raise
 
 async def send_order_notification(order_data):
     """Отправка уведомления о новом заказе продавцу."""
@@ -52,7 +66,6 @@ async def start_bot():
 
 def run_bot_in_background():
     """Запуск бота в отдельном потоке."""
-    import threading
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_bot())
