@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Монтирование статических файлов с явным путем
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Монтирование статических файлов для корневого пути и /static
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 # Инициализация базы данных
 try:
