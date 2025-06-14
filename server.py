@@ -101,7 +101,7 @@ async def create_category(name: str = Form(...), parent_id: str = Form(None)):
     try:
         if not name or not name.strip():
             raise HTTPException(status_code=422, detail="Название категории обязательно")
-        parent_id = int(parent_id) if parent_id else None
+        parent_id = int(parent_id) if parent_id and parent_id != "null" else None
         cursor.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name.strip(), parent_id))
         conn.commit()
         return {"status": "success", "message": "Категория создана"}
