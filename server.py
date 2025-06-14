@@ -141,7 +141,7 @@ async def upload_product(
     description: str = Form(...),
     price: float = Form(...),
     category_id: int = Form(...),
-    images: list[UploadFile] = File(None)
+    images: list[UploadFile] = File(...)
 ):
     try:
         image_paths = []
@@ -162,6 +162,20 @@ async def upload_product(
         return {"status": "success", "message": "Товар добавлен"}
     except Exception as e:
         logger.error(f"Error adding product: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+
+# API для удаления товара
+@app.delete("/api/admin/delete_product/{product_id}")
+async def delete_product(product_id: int):
+    try:
+        cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Товар не найден")
+        conn.commit()
+        logger.info(f"Product with ID {product_id} deleted successfully")
+        return {"status": "success", "message": "Товар удалён"}
+    except Exception as e:
+        logger.error(f"Error deleting product: {str(e)}")
         raise HTTPException(status_code=500, detail="Ошибка сервера")
 
 # API для создания заказа
