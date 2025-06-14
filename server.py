@@ -27,18 +27,19 @@ cursor.execute('''
 ''')
 conn.commit()
 
-# Ручное обслуживание статических файлов
+# Корневой путь перенаправляет на admin.html
+@app.get("/")
+async def root():
+    return FileResponse("static/admin.html", media_type="text/html")
+
+# Обслуживание статических файлов
 @app.get("/{file_path:path}")
 async def serve_static(file_path: str):
     file_path = os.path.join("static", file_path)
     if os.path.isfile(file_path):
-        return FileResponse(file_path, media_type="text/html")
+        media_type = "text/html" if file_path.endswith(".html") else "application/octet-stream"
+        return FileResponse(file_path, media_type=media_type)
     raise HTTPException(status_code=404, detail="Файл не найден")
-
-# Перенаправление корневого пути на admin.html
-@app.get("/")
-async def root():
-    return FileResponse("static/admin.html", media_type="text/html")
 
 # Получение всех товаров
 @app.get("/api/products")
