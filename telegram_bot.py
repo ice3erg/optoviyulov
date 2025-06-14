@@ -5,18 +5,25 @@ import logging
 import asyncio
 import threading
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram_bot")
 
 # Токен бота и ID чата продавца из переменных окружения
-BOT_TOKEN = ("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
-SELLER_CHAT_ID = ("984066798")
+BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"
+SELLER_CHAT_ID = 984066798  # integer
 
 # Логирование полученных переменных
-logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}")
+logger.info(f"TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}")
 
 # Подключение к базе данных
 DB_PATH = "products.db"
@@ -48,20 +55,17 @@ if BOT_TOKEN and SELLER_CHAT_ID:
         bot = None
         application = None
 else:
-    logger.warning(
-        f"Telegram бот не запущен: "
-        f"TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, "
-        f"SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}"
-    )
+    logger.warning("Telegram бот не запущен: переменные окружения не заданы")
 
 # Проверка, является ли пользователь админом
-def is_admin(chat_id):
+def is_admin(chat_id: int) -> bool:
+    logger.info(f"Проверка админа для chat_id: {chat_id}")
     cursor.execute("SELECT 1 FROM admins WHERE chat_id = ?", (chat_id,))
     return cursor.fetchone() is not None
 
 # Обработчики команд
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = str(update.message.chat_id)
+    chat_id = update.message.chat_id
     if not is_admin(chat_id):
         await update.message.reply_text("У вас нет доступа к этому боту.")
         return
@@ -76,13 +80,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    chat_id = str(query.message.chat_id)
+    chat_id = query.message.chat_id
     if not is_admin(chat_id):
         await query.edit_message_text("У вас нет доступа к этому боту.")
         return
 
     if query.data == 'open_admin':
-        admin_url = "https://optoviyulov.onrender.com/admin"  # Замените на ваш URL
+        admin_url = "https://optoviyulov.onrender.com/admin"
         await query.edit_message_text(f"Открыть админ-панель: [Нажмите здесь]({admin_url})", parse_mode='Markdown')
     elif query.data == 'add_admin':
         await query.edit_message_text("Введите chat_id нового админа")
@@ -91,13 +95,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         cursor.execute("SELECT id, user_id, total_price, status, created_at FROM orders")
         orders = cursor.fetchall()
         if orders:
-            message = "Список заказов:\n" + "\n".join([f"ID: {o[0]}, Пользователь: {o[1]}, Сумма: {o[2]} ₽, Статус: {o[3]}, Дата: {o[4]}" for o in orders])
+            message = "Список заказов:\n" + "\n".join([
+                f"ID: {o[0]}, Пользователь: {o[1]}, Сумма: {o[2]} ₽, Статус: {o[3]}, Дата: {o[4]}"
+                for o in orders
+            ])
         else:
             message = "Список заказов пуст."
         await query.edit_message_text(message)
 
 async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = str(update.message.chat_id)
+    chat_id = update.message.chat_id
     if not is_admin(chat_id) or 'mode' not in context.user_data:
         return
     text = update.message.text
@@ -111,10 +118,9 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except Exception as e:
         await update.message.reply_text(f"Ошибка: {str(e)}. Проверьте формат данных.")
     finally:
-        del context.user_data['mode']
+        context.user_data.pop('mode', None)
 
 async def send_order_notification(order_data):
-    """Отправка уведомления о новом заказе продавцу."""
     if not bot or not SELLER_CHAT_ID:
         logger.warning("Уведомление не отправлено: бот не инициализирован или SELLER_CHAT_ID не установлен")
         return
@@ -130,30 +136,28 @@ async def send_order_notification(order_data):
             f"Дата: {order_data['created_at']}"
         )
         await bot.send_message(chat_id=SELLER_CHAT_ID, text=message)
-        logger.info(f"Уведомление о заказе {order_data['id']} отправлено в чат {SELLER_CHAT_ID}")
+        logger.info(f"Уведомление о заказе {order_data['id']} отправлено")
     except Exception as e:
         logger.error(f"Ошибка отправки уведомления: {str(e)}")
 
 async def start_bot():
-    """Запуск бота с polling."""
     if not application:
         logger.warning("Бот не запущен: application не инициализирован")
         return
     try:
         logger.info("Запуск бота с polling...")
-        await application.initialize()
-        await application.start()
-        await application.updater.start_polling()
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CallbackQueryHandler(button_handler))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_input))
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
         logger.info("Telegram бот запущен")
         await application.updater.idle()
     except Exception as e:
         logger.error(f"Ошибка запуска бота: {str(e)}")
 
 def run_bot_in_background():
-    """Запуск бота в отдельном потоке."""
     if not application:
         logger.warning("Бот не запущен в фоновом режиме: application не инициализирован")
         return
@@ -162,7 +166,5 @@ def run_bot_in_background():
     loop.run_until_complete(start_bot())
     loop.run_forever()
 
-if __name__ == "__main__":
-    run_bot_in_background()
 if __name__ == "__main__":
     run_bot_in_background()
