@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram_bot")
 
 # Токен бота и ID чата продавца из переменных окружения
-BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
+TELEGRAM_BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
 SELLER_CHAT_ID = os.getenv("984066798")
 
 logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={BOT_TOKEN}, SELLER_CHAT_ID={SELLER_CHAT_ID}")
