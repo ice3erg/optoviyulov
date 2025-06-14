@@ -35,6 +35,11 @@ async def serve_static(file_path: str):
         return FileResponse(file_path, media_type="text/html")
     raise HTTPException(status_code=404, detail="Файл не найден")
 
+# Перенаправление корневого пути на admin.html
+@app.get("/")
+async def root():
+    return FileResponse("static/admin.html", media_type="text/html")
+
 # Получение всех товаров
 @app.get("/api/products")
 async def get_products(category: str = '', search: str = ''):
