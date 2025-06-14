@@ -107,15 +107,15 @@ async def create_category(name: str = Form(...), parent_id: int = Form(None)):
 
 # API для получения товаров
 @app.get("/api/products")
-async def get_products(category_id: int = None, search: str = ''):
+async def get_products(category_id: int = None, search: str = None):
     query = 'SELECT p.id, p.name, p.description, p.price, p.images, c.name AS category FROM products p JOIN categories c ON p.category_id = c.id WHERE 1=1'
     params = []
-    if category_id:
+    if category_id is not None:
         query += ' AND p.category_id = ?'
         params.append(category_id)
-    if search:
+    if search is not None and search.strip():
         query += ' AND p.name LIKE ?'
-        params.append(f"%{search}%")
+        params.append(f"%{search.strip()}%")
     cursor.execute(query, params)
     rows = cursor.fetchall()
     products = [
