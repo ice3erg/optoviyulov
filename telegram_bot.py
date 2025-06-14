@@ -12,11 +12,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram_bot")
 
 # Токен бота и ID чата продавца из переменных окружения
-TELEGRAM_BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
-SELLER_CHAT_ID = os.getenv("984066798")
+BOT_TOKEN = ("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
+SELLER_CHAT_ID = ("984066798")
 
 # Логирование полученных переменных
-logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={'установлен' if TELEGRAM_BOT_TOKEN else 'не установлен'}, SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}")
+logger.info(f"Полученные переменные: TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}")
 
 # Подключение к базе данных
 DB_PATH = "products.db"
@@ -39,7 +39,7 @@ if BOT_TOKEN and SELLER_CHAT_ID:
 else:
     logger.warning(
         f"Telegram бот не запущен: "
-        f"TELEGRAM_BOT_TOKEN={'установлен' if TELEGRAM_BOT_TOKEN else 'не установлен'}, "
+        f"TELEGRAM_BOT_TOKEN={'установлен' if BOT_TOKEN else 'не установлен'}, "
         f"SELLER_CHAT_ID={'установлен' if SELLER_CHAT_ID else 'не установлен'}"
     )
 
