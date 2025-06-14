@@ -1,55 +1,62 @@
-import asyncio
 import os
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-import sqlite3
 import json
+import sqlite3
+from telegram import Bot
+from telegram.ext import Application
+import asyncio
+import logging
 
-# Токен бота (будет взят из переменной окружения)
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("telegram_bot")
+
+# Токен бота и ID чата продавца из переменных окружения
 BOT_TOKEN = os.getenv("7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E")
+SELLER_CHAT_ID = os.getenv("SELLER_CHAT_ID")  # ID чата продавца
 
 # Подключение к базе данных
 DB_PATH = "products.db"
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
-# Команда /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Привет! Я бот для уведомлений о заказах. Используй /get_orders, чтобы увидеть заказы.")
+# Инициализация бота
+bot = Bot(token=BOT_TOKEN)
+application = Application.builder().token(BOT_TOKEN).build()
 
-# Команда /get_orders для отправки состава заказа
-async def get_orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    cursor.execute("SELECT * FROM orders")
-    orders = cursor.fetchall()
-    if orders:
-        for order in orders:
-            order_data = {
-                "ID": order[0],
-                "User ID": order[1],
-                "Products": json.loads(order[2]),
-                "Total Price": order[3],
-                "Status": order[4],
-                "Created At": order[5]
-            }
-            message = f"Новый заказ!\nID: {order_data['ID']}\nПользователь: {order_data['User ID']}\nТовары: {json.dumps(order_data['Products'], ensure_ascii=False)}\nСумма: {order_data['Total Price']} ₽\nСтатус: {order_data['Status']}\nДата: {order_data['Created At']}"
-            await update.message.reply_text(message)
-    else:
-        await update.message.reply_text("Нет заказов.")
+async def send_order_notification(order_data):
+    """Отправка уведомления о новом заказе продавцу."""
+    try:
+        message = (
+            f"Новый заказ!\n"
+            f"ID: {order_data['id']}\n"
+            f"Пользователь: {order_data['user_id']}\n"
+            f"Товары: {json.dumps(order_data['products'], ensure_ascii=False)}\n"
+            f"Сумма: {order_data['total_price']} ₽\n"
+            f"Статус: {order_data['status']}\n"
+            f"Дата: {order_data['created_at']}"
+        )
+        await bot.send_message(chat_id=SELLER_CHAT_ID, text=message)
+        logger.info(f"Уведомление о заказе {order_data['id']} отправлено в чат {SELLER_CHAT_ID}")
+    except Exception as e:
+        logger.error(f"Ошибка отправки уведомления: {str(e)}")
 
-# Основная функция
-def main() -> None:
-    # Создание приложения
-    application = Application.builder().token(BOT_TOKEN).build()
+async def start_bot():
+    """Запуск бота с polling."""
+    try:
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling()
+        logger.info("Telegram бот запущен")
+    except Exception as e:
+        logger.error(f"Ошибка запуска бота: {str(e)}")
 
-    # Регистрация обработчиков команд
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("get_orders", get_orders))
-
-    # Запуск бота
-    if os.name == "nt":  # Для Windows
-        asyncio.run(application.run_polling())
-    else:  # Для Emscripten (Render)
-        application.run_polling()
+def run_bot_in_background():
+    """Запуск бота в отдельном потоке."""
+    import threading
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(start_bot())
+    loop.run_forever()
 
 if __name__ == "__main__":
-    main()
+    run_bot_in_background()
