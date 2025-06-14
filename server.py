@@ -12,6 +12,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("optulov")
 
+# Создание нужных директорий
+os.makedirs("static/uploads", exist_ok=True)
+
 # Инициализация FastAPI
 app = FastAPI()
 
@@ -81,7 +84,6 @@ async def upload_product(
     image: UploadFile = File(...)
 ):
     try:
-        os.makedirs("static/uploads", exist_ok=True)
         image_path = f"static/uploads/{image.filename}"
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
@@ -111,4 +113,3 @@ async def upload_product(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
