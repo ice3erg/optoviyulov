@@ -3,13 +3,12 @@ import logging
 import sqlite3
 from fastapi import FastAPI
 from telegram import (
-    Bot,
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
 from telegram.ext import (
-    Application,
+    ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
@@ -17,14 +16,15 @@ from telegram.ext import (
     filters,
 )
 
-# Логирование
+# --- Настройка логирования ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"
+# --- Конфигурация ---
+BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
 DB_PATH = "products.db"
 
-# Инициализация БД
+# --- Инициализация базы данных ---
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
@@ -34,13 +34,13 @@ CREATE TABLE IF NOT EXISTS admins (
 """)
 conn.commit()
 
-# Добавим стартового админа, если нужно
 START_ADMIN_ID = 984066798
 cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (START_ADMIN_ID,))
 conn.commit()
 
+# --- FastAPI-приложение ---
 app = FastAPI()
-application = Application.builder().token(BOT_TOKEN).build()
+application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 
 def is_admin(chat_id: int) -> bool:
@@ -48,7 +48,8 @@ def is_admin(chat_id: int) -> bool:
     return cursor.fetchone() is not None
 
 
-# --- Хэндлеры бота ---
+# --- Хэндлеры Telegram бота ---
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if not is_admin(chat_id):
@@ -60,13 +61,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Добавить админа", callback_data="add_admin")],
         [InlineKeyboardButton("Посмотреть всех админов", callback_data="list_admins")],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Выберите действие:", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "Выберите действие:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     chat_id = query.message.chat.id
+
     if not is_admin(chat_id):
         await query.answer()
         await query.edit_message_text("У вас нет доступа к боту.")
@@ -76,16 +80,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "open_admin":
-        admin_url = "https://optoviyulov.onrender.com/admin"
-        await query.edit_message_text(f"Открыть админ-панель: [Нажмите здесь]({admin_url})", parse_mode="Markdown")
+        url = "https://optoviyulov.onrender.com/admin"
+        await query.edit_message_text(f"[Открыть админ-панель]({url})", parse_mode="Markdown")
     elif data == "add_admin":
-        await query.edit_message_text("Введите chat_id нового админа")
         context.user_data["mode"] = "add_admin"
+        await query.edit_message_text("Введите chat_id нового админа:")
     elif data == "list_admins":
         cursor.execute("SELECT chat_id FROM admins")
         admins = cursor.fetchall()
-        text = "Список админов:\n" + "\n".join(str(a[0]) for a in admins)
-        await query.edit_message_text(text)
+        msg = "Список админов:\n" + "\n".join(str(row[0]) for row in admins)
+        await query.edit_message_text(msg)
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -95,24 +99,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mode = context.user_data.get("mode")
     if mode == "add_admin":
-        text = update.message.text.strip()
         try:
-            new_admin_id = int(text)
-            cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (new_admin_id,))
+            new_admin = int(update.message.text.strip())
+            cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (new_admin,))
             conn.commit()
-            await update.message.reply_text(f"Админ с chat_id {new_admin_id} успешно добавлен!")
+            await update.message.reply_text(f"✅ Админ {new_admin} добавлен.")
         except Exception as e:
-            await update.message.reply_text(f"Ошибка при добавлении: {e}")
+            await update.message.reply_text(f"Ошибка: {e}")
         finally:
             context.user_data.pop("mode", None)
 
 
+# Функция уведомления админов о заказе
 async def send_order_notification(order_data: dict):
-    """Отправить уведомление о новом заказе всем админам."""
     cursor.execute("SELECT chat_id FROM admins")
     admins = cursor.fetchall()
-    message = (
-        f"Новый заказ!\n"
+    msg = (
+        f"📦 Новый заказ:\n"
         f"ID: {order_data.get('id')}\n"
         f"Пользователь: {order_data.get('user_id')}\n"
         f"Товары: {order_data.get('products')}\n"
@@ -120,41 +123,26 @@ async def send_order_notification(order_data: dict):
         f"Статус: {order_data.get('status')}\n"
         f"Дата: {order_data.get('created_at')}"
     )
-    for (admin_chat_id,) in admins:
+    for (admin_id,) in admins:
         try:
-            await application.bot.send_message(chat_id=admin_chat_id, text=message)
+            await application.bot.send_message(chat_id=admin_id, text=msg)
         except Exception as e:
-            logger.error(f"Ошибка отправки уведомления администратору {admin_chat_id}: {e}")
+            logger.error(f"Ошибка при уведомлении {admin_id}: {e}")
 
 
-# Добавляем хэндлеры
+# --- Регистрация хэндлеров ---
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
 
-# --- Запуск бота параллельно с FastAPI ---
-
-async def run_bot():
-    logger.info("Запускаем Telegram-бот...")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    logger.info("Telegram-бот запущен")
-    # Ждём, чтобы не завершать таск
-    await application.updater.idle()
-
+# --- Интеграция Telegram бота с FastAPI ---
 
 @app.on_event("startup")
-async def startup_event():
-    # Запускаем бота в фоне
-    asyncio.create_task(run_bot())
+async def startup():
+    asyncio.create_task(application.run_polling())
 
 
 @app.get("/")
 async def root():
-    return {"message": "FastAPI с Telegram ботом работает"}
-
-
-# Чтобы запустить:
-# uvicorn main:app --host 0.0.0.0 --port 10000
+    return {"message": "FastAPI и Telegram бот работают 🚀"}
