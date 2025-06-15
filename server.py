@@ -23,12 +23,17 @@ app = FastAPI()
 
 # Запуск Telegram бота в отдельном потоке при старте приложения
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     try:
-        threading.Thread(target=telegram_bot.run_bot_in_background, daemon=True).start()
-        logger.info("FastAPI приложение запущено, Telegram бот (если настроен) запущен")
+        thread = threading.Thread(target=telegram_bot.run_bot_in_background, daemon=True)
+        thread.start()
+        logger.info("Бот запущен")
     except Exception as e:
-        logger.error(f"Ошибка при запуске Telegram бота: {str(e)}")
+        logger.error(f"Ошибка при запуске Telegram бота: {e}")
+
+@app.get("/")
+def root():
+    return {"message": "Бот + FastAPI работает"}
 
 # CORS для Telegram-апки
 app.add_middleware(
