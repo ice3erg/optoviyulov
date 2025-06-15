@@ -115,5 +115,8 @@ def run_bot():
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(application.run_polling())
+    loop.run_until_complete(
+        application.run_polling(stop_signals=None)
+    )
+
 
