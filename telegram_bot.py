@@ -146,3 +146,7 @@ async def startup():
 @app.get("/")
 async def root():
     return {"message": "FastAPI и Telegram бот работают 🚀"}
+
+def run_bot_in_background():
+    import asyncio
+    asyncio.run(application.run_polling())
