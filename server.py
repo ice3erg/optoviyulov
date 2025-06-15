@@ -22,7 +22,16 @@ os.makedirs("static/uploads", exist_ok=True)
 app = FastAPI()
 
 # Запуск Telegram бота в отдельном потоке при старте приложения
-import telegram_bot
+from fastapi import FastAPI
+import threading
+import telegram_bot  # <-- Импортируй свой модуль с ботом
+
+app = FastAPI()
+
+@app.on_event("startup")
+def start_bot():
+    thread = threading.Thread(target=telegram_bot.run_bot, daemon=True)
+    thread.start()
 
 # CORS для Telegram-апки
 app.add_middleware(
