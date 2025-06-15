@@ -9,139 +9,65 @@ from telegram.ext import (
 
 # --- Конфигурация ---
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
-DB_PATH = "products.db"
+dp = Dispatcher(bot)
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS admins (chat_id INTEGER PRIMARY KEY)")
-conn.commit()
+@dp.message_handler(commands=["start"])
+async def cmd_start(message: types.Message):
+    await message.reply("Добро пожаловать! Используйте /addadmin <id>, если вы админ.")
 
-START_ADMIN_ID = 984066798
-cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (START_ADMIN_ID,))
-conn.commit()
-
-application = ApplicationBuilder().token(BOT_TOKEN).build()
-
-def is_admin(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    return result is not None
-
-def add_admin(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+@dp.message_handler(commands=["addadmin"])
+async def cmd_addadmin(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.reply("У вас нет прав добавлять админов.")
+        return
     try:
-        cursor.execute("INSERT INTO admins (user_id) VALUES (?)", (user_id,))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False  # Уже есть такой админ
-    finally:
-        conn.close()
+        parts = message.text.strip().split()
+        if len(parts) != 2:
+            await message.reply("Использование: /addadmin <user_id>")
+            return
+        new_admin_id = int(parts[1])
+        if add_admin(new_admin_id):
+            await message.reply(f"✅ Пользователь {new_admin_id} теперь админ.")
+        else:
+            await message.reply("Этот пользователь уже админ.")
+    except Exception as e:
+        await message.reply(f"Ошибка: {e}")
 
-def remove_admin(user_id: int) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM admins WHERE user_id = ?", (user_id,))
-    deleted = cursor.rowcount > 0
-    conn.commit()
+@dp.message_handler(commands=["admins"])
+async def cmd_admins_list(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.reply("Нет доступа.")
+        return
+    import sqlite3
+    conn = sqlite3.connect("products.db")
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM admins")
+    ids = [str(row[0]) for row in cur.fetchall()]
     conn.close()
-    return deleted
-    
-# Команда /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not is_admin(chat_id):
-        await update.message.reply_text("У вас нет доступа к боту.")
-        return
+    await message.reply("🧑‍💻 Список админов:\n" + "\n".join(ids))
 
-    keyboard = [
-        [InlineKeyboardButton("Открыть админ-панель", callback_data="open_admin")],
-        [InlineKeyboardButton("Добавить админа", callback_data="add_admin")],
-        [InlineKeyboardButton("Посмотреть всех админов", callback_data="list_admins")]
-    ]
-    await update.message.reply_text("Выберите действие:", reply_markup=InlineKeyboardMarkup(keyboard))
+async def send_order_notification(order: dict):
+    import sqlite3
+    conn = sqlite3.connect("products.db")
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM admins")
+    admin_ids = [row[0] for row in cur.fetchall()]
+    conn.close()
 
-# Обработка кнопок
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    chat_id = query.message.chat.id
+    text = f"🛒 Новый заказ:\n\nID: {order['id']}\nПользователь: {order['user_id']}\nСумма: {order['total_price']} ₽\n\nТовары:\n"
+    for p in order["products"]:
+        text += f"- {p['name']} x{p['quantity']}\n"
 
-    if not is_admin(chat_id):
-        await query.answer()
-        await query.edit_message_text("У вас нет доступа к боту.")
-        return
-
-    await query.answer()
-    data = query.data
-
-    if data == "open_admin":
-        url = "https://optoviyulov.onrender.com/admin"
-        await query.edit_message_text(f"[Открыть админ-панель]({url})", parse_mode="Markdown")
-    elif data == "add_admin":
-        context.user_data["mode"] = "add_admin"
-        await query.edit_message_text("Введите chat_id нового админа:")
-    elif data == "list_admins":
-        cursor.execute("SELECT chat_id FROM admins")
-        admins = cursor.fetchall()
-        msg = "Список админов:\n" + "\n".join(str(row[0]) for row in admins)
-        await query.edit_message_text(msg)
-
-# Обработка текста
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not is_admin(chat_id):
-        return
-
-    mode = context.user_data.get("mode")
-    if mode == "add_admin":
+    for admin_id in admin_ids:
         try:
-            new_admin = int(update.message.text.strip())
-            cursor.execute("INSERT OR IGNORE INTO admins (chat_id) VALUES (?)", (new_admin,))
-            conn.commit()
-            await update.message.reply_text(f"✅ Админ {new_admin} добавлен.")
+            await bot.send_message(admin_id, text)
         except Exception as e:
-            await update.message.reply_text(f"Ошибка: {e}")
-        finally:
-            context.user_data.pop("mode", None)
+            logging.error(f"Ошибка отправки админу {admin_id}: {e}")
 
-# Уведомление о заказе
-async def send_order_notification(order_data: dict):
-    cursor.execute("SELECT chat_id FROM admins")
-    admins = cursor.fetchall()
-    msg = (
-        f"📦 Новый заказ:\n"
-        f"ID: {order_data.get('id')}\n"
-        f"Пользователь: {order_data.get('user_id')}\n"
-        f"Товары: {order_data.get('products')}\n"
-        f"Сумма: {order_data.get('total_price')} ₽\n"
-        f"Статус: {order_data.get('status')}\n"
-        f"Дата: {order_data.get('created_at')}"
-    )
-    for (admin_id,) in admins:
-        try:
-            await application.bot.send_message(chat_id=admin_id, text=msg)
-        except Exception as e:
-            logger.error(f"Ошибка при уведомлении {admin_id}: {e}")
-
-# Регистрируем хэндлеры
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_handler))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-# Стартуем бота
 def run_bot():
-    import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(
-        application.run_polling(stop_signals=None)
-    )
-
+    executor.start_polling(dp, skip_updates=True)
 
