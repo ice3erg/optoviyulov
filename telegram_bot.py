@@ -137,16 +137,6 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_t
 
 
 # --- Интеграция Telegram бота с FastAPI ---
-
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(application.run_polling())
-
-
-@app.get("/")
-async def root():
-    return {"message": "FastAPI и Telegram бот работают 🚀"}
-
-def run_bot_in_background():
-    import asyncio
-    asyncio.run(application.run_polling())
