@@ -1,10 +1,9 @@
 fastapi==0.115.0
-pydantic==2.9.2
 uvicorn==0.32.0
 pandas==2.2.3
 openpyxl==3.1.5
 requests==2.32.3
 python-multipart==0.0.12
 pillow==10.4.0
-aiogram==3.3.0
-
+aiogram==3.3.0  # Заменили python-telegram-bot
+pydantic==2.9.2  # Обновили для совместимости
