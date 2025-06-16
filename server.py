@@ -21,11 +21,15 @@ os.makedirs("static/uploads", exist_ok=True)
 # Запуск Telegram бота при старте приложения
 app = FastAPI()
 
-@app.on_event("startup")
 async def start_bot():
+    # Запускаем polling бота в отдельной задаче
     loop = asyncio.get_event_loop()
-    telegram_bot.dp.startup.connect(telegram_bot.on_startup)
     loop.create_task(telegram_bot.start_polling())
+
+@app.on_event("startup")
+async def on_startup():
+    await start_bot()  # Запуск бота при старте приложения
+    await init_db()    # Инициализация базы данных
 
 # CORS
 app.add_middleware(
@@ -77,10 +81,6 @@ async def init_db():
             )
         """)
         await db.commit()
-
-@app.on_event("startup")
-async def on_startup():
-    await init_db()
 
 # Обслуживание статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
