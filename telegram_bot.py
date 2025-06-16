@@ -11,31 +11,40 @@ bot = Bot(BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("telegram_bot")
 
 DB_NAME = "products.db"
 
 async def is_admin(user_id: int) -> bool:
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,)) as cursor:
-            return await cursor.fetchone() is not None
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,)) as cursor:
+                return await cursor.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Error in is_admin: {e}")
+        return False
 
 async def add_admin(user_id: int) -> bool:
     try:
         async with aiosqlite.connect(DB_NAME) as db:
-            await db.execute("INSERT INTO admins (user_id) VALUES (?)", (user_id,))
+            await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (user_id,))
             await db.commit()
         return True
-    except aiosqlite.IntegrityError:
+    except Exception as e:
+        logger.error(f"Error in add_admin: {e}")
         return False
 
 async def init_db():
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS admins (
-                user_id INTEGER PRIMARY KEY
-            )
-        """)
-        await db.commit()
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS admins (
+                    user_id INTEGER PRIMARY KEY
+                )
+            """)
+            await db.commit()
+    except Exception as e:
+        logger.error(f"Error initializing DB: {e}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -66,38 +75,47 @@ async def cmd_admins_list(message: types.Message):
     if not await is_admin(message.from_user.id):
         await message.answer("Нет доступа.")
         return
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT user_id FROM admins") as cursor:
-            rows = await cursor.fetchall()
-            ids = [str(row[0]) for row in rows]
-    await message.answer("🧑‍💻 Список админов:\n" + "\n".join(ids))
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT user_id FROM admins") as cursor:
+                rows = await cursor.fetchall()
+                ids = [str(row[0]) for row in rows]
+        await message.answer("🧑‍💻 Список админов:\n" + "\n".join(ids))
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
 
 async def send_order_notification(order: dict):
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT user_id FROM admins") as cursor:
-            rows = await cursor.fetchall()
-            admin_ids = [row[0] for row in rows]
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT user_id FROM admins") as cursor:
+                rows = await cursor.fetchall()
+                admin_ids = [row[0] for row in rows]
 
-    text = (f"🛒 Новый заказ:\n\n"
-            f"ID: {order['id']}\n"
-            f"Пользователь: {order['user_id']}\n"
-            f"Сумма: {order['total_price']} ₽\n\n"
-            "Товары:\n")
-    for p in order["products"]:
-        text += f"- {p['name']} x{p['quantity']}\n"
+        text = (f"🛒 Новый заказ:\n\n"
+                f"ID: {order['id']}\n"
+                f"Пользователь: {order['user_id']}\n"
+                f"Сумма: {order['total_price']} ₽\n\n"
+                "Товары:\n")
+        for p in order["products"]:
+            text += f"- {p['name']} x{p['quantity']}\n"
 
-    for admin_id in admin_ids:
-        try:
-            await bot.send_message(admin_id, text)
-        except Exception as e:
-            logging.error(f"Ошибка отправки админу {admin_id}: {e}")
+        for admin_id in admin_ids:
+            try:
+                await bot.send_message(admin_id, text)
+            except Exception as e:
+                logger.error(f"Ошибка отправки админу {admin_id}: {e}")
+    except Exception as e:
+        logger.error(f"Error in send_order_notification: {e}")
 
 async def on_startup():
-    logging.info("Бот запущен!")
+    logger.info("Бот запущен!")
     await init_db()
 
+async def start_polling():
+    await dp.start_polling(bot, on_startup=on_startup)
+
 def run_bot():
-    asyncio.run(dp.start_polling(bot, on_startup=on_startup))
+    asyncio.run(start_polling())
 
 if __name__ == "__main__":
     run_bot()
