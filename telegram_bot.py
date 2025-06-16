@@ -83,7 +83,7 @@ async def cmd_addadmin(message: types.Message):
     try:
         parts = message.text.strip().split()
         if len(parts) != 2:
-            await message.answer("Использование: <code>/addadmin &lt;user_id&gt;</code>")
+            await message.answer("Использование: <code>/addadmin <user_id></code>")
             return
         new_admin_id = int(parts[1])
         if await add_admin(new_admin_id):
@@ -142,7 +142,7 @@ async def start_polling():
         _is_running = True
         try:
             logger.info("Starting bot polling...")
-            await dp.start_polling(bot, on_startup=on_startup)
+            await dp.start_polling(bot, on_startup=on_startup, skip_updates=True)  # Добавлен skip_updates
         except TelegramConflictError:
             logger.error("Another bot instance is running. Stopping polling.")
             _is_running = False
