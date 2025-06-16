@@ -22,23 +22,29 @@ dp = Dispatcher()
 # Флаг для предотвращения повторного запуска
 _is_running = False
 
-async def is_admin(user_id: int) -> bool:
+SELLER_ID = <ваш_seller_id>  # Например, 123456789
+
+async def is_admin_or_seller(user_id: int) -> bool:
     try:
         async with aiosqlite.connect(DB_NAME) as db:
             async with db.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,)) as cursor:
-                return await cursor.fetchone() is not None
+                if await cursor.fetchone() is not None:
+                    return True  # Пользователь является админом
+        return user_id == SELLER_ID  # Пользователь является продавцом (вами)
     except Exception as e:
-        logger.error(f"Error in is_admin: {e}")
+        logger.error(f"Error in is_admin_or_seller: {e}")
         return False
 
 async def add_admin(user_id: int) -> bool:
     try:
         async with aiosqlite.connect(DB_NAME) as db:
+            logger.info(f"Attempting to add user {user_id} as admin")
             await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (user_id,))
             await db.commit()
+            logger.info(f"Successfully added user {user_id} as admin")
         return True
     except Exception as e:
-        logger.error(f"Error in add_admin: {e}")
+        logger.error(f"Error in add_admin for user {user_id}: {e}")
         return False
 
 async def init_db():
@@ -49,17 +55,20 @@ async def init_db():
                     user_id INTEGER PRIMARY KEY
                 )
             """)
+            # Инициализация вас как продавца/админа
+            await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (SELLER_ID,))
             await db.commit()
+            logger.info("Database initialized or already exists with seller as admin")
     except Exception as e:
         logger.error(f"Error initializing DB: {e}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Добро пожаловать! Используйте /addadmin id, если вы админ.")
+    await message.answer("Добро пожаловать! Используйте /addadmin id, если вы админ или продавец.")
 
 @dp.message(Command("addadmin"))
 async def cmd_addadmin(message: types.Message):
-    if not await is_admin(message.from_user.id):
+    if not await is_admin_or_seller(message.from_user.id):
         await message.answer("У вас нет прав добавлять админов.")
         return
     try:
@@ -79,7 +88,7 @@ async def cmd_addadmin(message: types.Message):
 
 @dp.message(Command("admins"))
 async def cmd_admins_list(message: types.Message):
-    if not await is_admin(message.from_user.id):
+    if not await is_admin_or_seller(message.from_user.id):
         await message.answer("Нет доступа.")
         return
     try:
