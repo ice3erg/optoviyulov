@@ -18,7 +18,7 @@ logger = logging.getLogger("optulov")
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
-# Запуск Telegram бота в отдельном потоке при старте приложения
+# Запуск Telegram бота при старте приложения
 app = FastAPI()
 
 @app.on_event("startup")
@@ -27,7 +27,7 @@ async def start_bot():
     telegram_bot.dp.startup.connect(telegram_bot.on_startup)
     loop.create_task(telegram_bot.start_polling())
 
-# CORS для Telegram-апки
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключение к базе данных
+# Инициализация базы данных
 DB_PATH = "products.db"
 
 async def init_db():
@@ -81,27 +81,23 @@ async def init_db():
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-conn.commit()
 
 # Обслуживание статических файлов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Корневой путь (пользовательская страница)
+# Корневой путь
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
 
-# Админ-панель
 @app.get("/admin")
 async def serve_admin():
     return FileResponse("static/admin.html")
 
-# Профиль
 @app.get("/profile")
 async def serve_profile():
     return FileResponse("static/profile.html")
 
-# Корзина
 @app.get("/cart")
 async def serve_cart():
     return FileResponse("static/cart.html")
@@ -109,8 +105,9 @@ async def serve_cart():
 # API для получения категорий
 @app.get("/api/categories")
 async def get_categories():
-    cursor.execute("SELECT id, name, parent_id FROM categories")
-    categories = [{"id": row[0], "name": row[1], "parent_id": row[2]} for row in cursor.fetchall()]
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id, name, parent_id FROM categories") as cursor:
+            categories = [{"id": row[0], "name": row[1], "parent_id": row[2]} for row in await cursor.fetchall()]
     return categories
 
 # API для создания категории
@@ -121,13 +118,12 @@ async def create_category(name: str = Form(...), parent_id: str = Form(None)):
         if not name or not name.strip():
             raise HTTPException(status_code=422, detail="Название категории обязательно")
         parent_id = int(parent_id) if parent_id and parent_id != "null" else None
-        cursor.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name.strip(), parent_id))
-        conn.commit()
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name.strip(), parent_id))
+            await db.commit()
         return {"status": "success", "message": "Категория создана"}
     except ValueError:
         raise HTTPException(status_code=422, detail="parent_id должен быть числом, если указан")
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=422, detail="Неверный parent_id или дубликат названия")
     except Exception as e:
         logger.error(f"Error creating category: {str(e)}")
         raise HTTPException(status_code=422, detail="Ошибка создания категории")
@@ -143,8 +139,9 @@ async def get_products(category_id: int = None, search: str = None):
     if search is not None and search.strip():
         query += ' AND p.name LIKE ?'
         params.append(f"%{search.strip()}%")
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
     products = [
         {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "images": json.loads(row[4]), "category": row[5]}
         for row in rows
@@ -155,8 +152,9 @@ async def get_products(category_id: int = None, search: str = None):
 # API для получения одного товара по id
 @app.get("/api/products/{product_id}")
 async def get_product(product_id: int):
-    cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-    row = cursor.fetchone()
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT * FROM products WHERE id = ?", (product_id,)) as cursor:
+            row = await cursor.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Товар не найден")
     return {"id": row[0], "name": row[1], "description": row[2], "price": row[3], "images": json.loads(row[4]), "category_id": row[5]}
@@ -180,11 +178,12 @@ async def upload_product(
                 image_paths.append(f"/static/uploads/{image.filename}")
         image_json = json.dumps(image_paths) if image_paths else '["/static/placeholder.jpg"]'
 
-        cursor.execute(
-            'INSERT INTO products (name, description, price, images, category_id) VALUES (?, ?, ?, ?, ?)',
-            (name, description, price, image_json, category_id)
-        )
-        conn.commit()
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                'INSERT INTO products (name, description, price, images, category_id) VALUES (?, ?, ?, ?, ?)',
+                (name, description, price, image_json, category_id)
+            )
+            await db.commit()
         logger.info(f"Product '{name}' added successfully")
         return {"status": "success", "message": "Товар добавлен"}
     except Exception as e:
@@ -195,10 +194,11 @@ async def upload_product(
 @app.delete("/api/admin/delete_product/{product_id}")
 async def delete_product(product_id: int):
     try:
-        cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
-        if cursor.rowcount == 0:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+            await db.commit()
+        if db.rowcount == 0:
             raise HTTPException(status_code=404, detail="Товар не найден")
-        conn.commit()
         logger.info(f"Product with ID {product_id} deleted successfully")
         return {"status": "success", "message": "Товар удалён"}
     except Exception as e:
@@ -209,14 +209,14 @@ async def delete_product(product_id: int):
 @app.post("/api/orders")
 async def create_order(user_id: str = Form(...), products: str = Form(...), total_price: float = Form(...)):
     try:
-        cursor.execute(
-            'INSERT INTO orders (user_id, products, total_price) VALUES (?, ?, ?)',
-            (user_id, products, total_price)
-        )
-        conn.commit()
-        order_id = cursor.lastrowid
-        cursor.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
-        order = cursor.fetchone()
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                'INSERT INTO orders (user_id, products, total_price) VALUES (?, ?, ?)',
+                (user_id, products, total_price)
+            )
+            await db.commit()
+            await db.execute("SELECT * FROM orders WHERE id = (SELECT last_insert_rowid())")
+            order = await db.fetchone()
         order_data = {
             "id": order[0],
             "user_id": order[1],
@@ -225,7 +225,7 @@ async def create_order(user_id: str = Form(...), products: str = Form(...), tota
             "status": order[4],
             "created_at": order[5]
         }
-        asyncio.create_task(telegram_bot.send_order_notification(order_data))
+        await telegram_bot.send_order_notification(order_data)
         logger.info(f"Order created for user_id={user_id}")
         return {"status": "success", "message": "Заказ создан"}
     except Exception as e:
@@ -237,11 +237,8 @@ async def create_order(user_id: str = Form(...), products: str = Form(...), tota
 async def get_orders(user_id: str = None):
     if not user_id:
         raise HTTPException(status_code=400, detail="User ID required")
-    cursor.execute("SELECT * FROM orders WHERE user_id = ?", (user_id,))
-    rows = cursor.fetchall()
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT * FROM orders WHERE user_id = ?", (user_id,)) as cursor:
+            rows = await cursor.fetchall()
     orders = [{"id": row[0], "user_id": row[1], "products": json.loads(row[2]), "total_price": row[3], "status": row[4], "created_at": row[5]} for row in rows]
     return orders
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000)
