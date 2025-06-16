@@ -18,6 +18,9 @@ BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # Замените
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
+# Флаг для предотвращения повторного запуска
+_is_running = False
+
 async def is_admin(user_id: int) -> bool:
     try:
         async with aiosqlite.connect(DB_NAME) as db:
@@ -115,4 +118,17 @@ async def on_startup():
     await init_db()
 
 async def start_polling():
-    await dp.start_polling(bot, on_startup=on_startup)
+    global _is_running
+    if not _is_running:
+        _is_running = True
+        try:
+            await dp.start_polling(bot, on_startup=on_startup)
+        except Exception as e:
+            logger.error(f"Error in start_polling: {e}")
+            _is_running = False
+            raise
+    else:
+        logger.warning("Bot polling is already running!")
+
+if __name__ == "__main__":
+    raise RuntimeError("This module should not be run directly. Use server.py to start the bot.")
