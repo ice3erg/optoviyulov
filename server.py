@@ -19,13 +19,7 @@ logger = logging.getLogger("optulov")
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
-app = FastAPI()
-
 # Запуск Telegram бота в отдельном потоке при старте приложения
-from fastapi import FastAPI
-import threading
-import telegram_bot  # <-- Импортируй свой модуль с ботом
-
 app = FastAPI()
 
 @app.on_event("startup")
