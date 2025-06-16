@@ -81,45 +81,6 @@ async def init_db():
 @app.on_event("startup")
 async def on_startup():
     await init_db()
-
-# Создание таблиц
-
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER UNIQUE NOT NULL
-    )
-''')
-
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        parent_id INTEGER,
-        FOREIGN KEY (parent_id) REFERENCES categories(id)
-    )
-''')
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        price REAL,
-        images TEXT DEFAULT '["/static/placeholder.jpg"]',
-        category_id INTEGER,
-        FOREIGN KEY (category_id) REFERENCES categories(id)
-    )
-''')
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        products TEXT,
-        total_price REAL,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-''')
 conn.commit()
 
 # Обслуживание статических файлов
