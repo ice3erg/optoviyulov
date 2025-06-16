@@ -1,134 +1,61 @@
-import os
-import asyncio
-import logging
-import aiosqlite
+import aiosqlite, logging, asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("telegram_bot")
-
-DB_NAME = "products.db"
-
 # Создание бота и диспетчера (глобальные объекты для использования в server.py)
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # Замените на свой токен!
+DB_NAME = "products.db"
+
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
-
-# Флаг для предотвращения повторного запуска
-_is_running = False
+logger = logging.getLogger("bot")
 
 async def is_admin(user_id: int) -> bool:
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            async with db.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,)) as cursor:
-                return await cursor.fetchone() is not None
-    except Exception as e:
-        logger.error(f"Error in is_admin: {e}")
-        return False
-
-async def add_admin(user_id: int) -> bool:
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (user_id,))
-            await db.commit()
-        return True
-    except Exception as e:
-        logger.error(f"Error in add_admin: {e}")
-        return False
-
-async def init_db():
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS admins (
-                    user_id INTEGER PRIMARY KEY
-                )
-            """)
-            await db.commit()
-    except Exception as e:
-        logger.error(f"Error initializing DB: {e}")
+    async with aiosqlite.connect(DB_NAME) as db:
+        r = await db.execute_fetchone("SELECT 1 FROM admins WHERE user_id = ?", (user_id,))
+        return r is not None
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Добро пожаловать! Используйте /addadmin id, если вы админ.")
+    await message.answer("Привет! Используй /admins, /addadmin <id>")
 
 @dp.message(Command("addadmin"))
-async def cmd_addadmin(message: types.Message):
+async def add_admin_cmd(message: types.Message):
     if not await is_admin(message.from_user.id):
-        await message.answer("У вас нет прав добавлять админов.")
-        return
+        return await message.answer("Нет доступа.")
     try:
-        parts = message.text.strip().split()
-        if len(parts) != 2:
-            await message.answer("Использование: /addadmin <user_id>")
-            return
-        new_admin_id = int(parts[1])
-        if await add_admin(new_admin_id):
-            await message.answer(f"✅ Пользователь {new_admin_id} теперь админ.")
-        else:
-            await message.answer("Этот пользователь уже админ.")
-    except ValueError:
-        await message.answer("Ошибка: user_id должен быть числом.")
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
+        uid = int(message.text.split()[1])
+        async with aiosqlite.connect(DB_NAME) as db:
+            await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (uid,))
+            await db.commit()
+        await message.answer(f"✅ {uid} добавлен как админ.")
+    except: await message.answer("Ошибка.")
 
 @dp.message(Command("admins"))
-async def cmd_admins_list(message: types.Message):
+async def list_admins(message: types.Message):
     if not await is_admin(message.from_user.id):
-        await message.answer("Нет доступа.")
-        return
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            async with db.execute("SELECT user_id FROM admins") as cursor:
-                rows = await cursor.fetchall()
-                ids = [str(row[0]) for row in rows]
-        await message.answer("🧑‍💻 Список админов:\n" + "\n".join(ids))
-    except Exception as e:
-        await message.answer(f"Ошибка: {e}")
+        return await message.answer("Нет доступа.")
+    async with aiosqlite.connect(DB_NAME) as db:
+        rows = await db.execute_fetchall("SELECT user_id FROM admins")
+        ids = [str(row[0]) for row in rows]
+    await message.answer("Админы:\n" + "\n".join(ids))
 
 async def send_order_notification(order: dict):
-    try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            async with db.execute("SELECT user_id FROM admins") as cursor:
-                rows = await cursor.fetchall()
-                admin_ids = [row[0] for row in rows]
-
-        text = (f"🛒 Новый заказ:\n\n"
-                f"ID: {order['id']}\n"
-                f"Пользователь: {order['user_id']}\n"
-                f"Сумма: {order['total_price']} ₽\n\n"
-                "Товары:\n")
-        for p in order["products"]:
-            text += f"- {p['name']} x{p['quantity']}\n"
-
-        for admin_id in admin_ids:
-            try:
-                await bot.send_message(admin_id, text)
-            except Exception as e:
-                logger.error(f"Ошибка отправки админу {admin_id}: {e}")
-    except Exception as e:
-        logger.error(f"Error in send_order_notification: {e}")
-
-async def on_startup():
-    logger.info("Бот запущен!")
-    await init_db()
-
-async def start_polling():
-    global _is_running
-    if not _is_running:
-        _is_running = True
+    text = f"🛒 Новый заказ:\nID: {order['id']}\nПользователь: {order['user_id']}\nСумма: {order['total_price']} ₽\n\nТовары:\n"
+    for p in order["products"]:
+        text += f"- {p['name']} x{p['quantity']}\n"
+    async with aiosqlite.connect(DB_NAME) as db:
+        rows = await db.execute_fetchall("SELECT user_id FROM admins")
+    for row in rows:
         try:
-            await dp.start_polling(bot, on_startup=on_startup)
+            await bot.send_message(row[0], text)
         except Exception as e:
-            logger.error(f"Error in start_polling: {e}")
-            _is_running = False
-            raise
-    else:
-        logger.warning("Bot polling is already running!")
+            logger.error(f"Ошибка отправки админу {row[0]}: {e}")
+
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    raise RuntimeError("This module should not be run directly. Use server.py to start the bot.")
+    asyncio.run(main())
