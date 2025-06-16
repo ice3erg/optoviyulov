@@ -116,13 +116,20 @@ async def send_order_notification(order: dict):
                 rows = await cursor.fetchall()
                 admin_ids = [row[0] for row in rows]
 
+        # Экранируем данные для безопасной вставки
+        safe_id = str(order.get('id', 'N/A'))
+        safe_user_id = str(order.get('user_id', 'N/A'))
+        safe_price = str(order.get('total_price', 'N/A'))
+
         text = (f"🛒 Новый заказ:\n\n"
-                f"ID: <code>{order['id']}</code>\n"
-                f"Пользователь: <code>{order['user_id']}</code>\n"
-                f"Сумма: <code>{order['total_price']}</code> ₽\n\n"
+                f"ID: <code>{safe_id}</code>\n"
+                f"Пользователь: <code>{safe_user_id}</code>\n"
+                f"Сумма: <code>{safe_price}</code> ₽\n\n"
                 "Товары:\n")
-        for p in order["products"]:
-            text += f"- <code>{p['name']}</code> x{p['quantity']}\n"
+        for p in order.get('products', []):
+            safe_name = str(p.get('name', 'N/A'))
+            quantity = str(p.get('quantity', 'N/A'))
+            text += f"- <code>{safe_name}</code> x{quantity}\n"
 
         for admin_id in admin_ids:
             try:
@@ -142,11 +149,12 @@ async def start_polling():
         _is_running = True
         try:
             logger.info("Starting bot polling...")
-            await dp.start_polling(bot, on_startup=on_startup, skip_updates=True)  # Добавлен skip_updates
+            await dp.start_polling(bot, on_startup=on_startup, skip_updates=True)
         except TelegramConflictError:
-            logger.error("Another bot instance is running. Stopping polling.")
+            logger.error("Another bot instance is running. Stopping polling and attempting to close.")
             _is_running = False
             await bot.close()
+            await asyncio.sleep(5)  # Дополнительная задержка перед выходом
         except Exception as e:
             logger.error(f"Error in start_polling: {e}")
             _is_running = False
