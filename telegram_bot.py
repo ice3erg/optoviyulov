@@ -8,9 +8,6 @@ from aiogram.filters import Command
 
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
 bot = Bot(BOT_TOKEN, parse_mode=ParseMode.HTML)
-   dp = Dispatcher()
-
- bot = Bot(BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 logging.basicConfig(level=logging.INFO)
@@ -81,7 +78,11 @@ async def send_order_notification(order: dict):
             rows = await cursor.fetchall()
             admin_ids = [row[0] for row in rows]
 
-    text = f"🛒 Новый заказ:\n\nID: {order['id']}\nПользователь: {order['user_id']}\nСумма: {order['total_price']} ₽\n\nТовары:\n"
+    text = (f"🛒 Новый заказ:\n\n"
+            f"ID: {order['id']}\n"
+            f"Пользователь: {order['user_id']}\n"
+            f"Сумма: {order['total_price']} ₽\n\n"
+            "Товары:\n")
     for p in order["products"]:
         text += f"- {p['name']} x{p['quantity']}\n"
 
@@ -98,7 +99,5 @@ async def on_startup():
 def run_bot():
     asyncio.run(dp.start_polling(bot, on_startup=on_startup))
 
-# Чтобы запустить бота вручную
 if __name__ == "__main__":
     run_bot()
-
