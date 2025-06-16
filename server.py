@@ -18,18 +18,7 @@ logger = logging.getLogger("optulov")
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/uploads", exist_ok=True)
 
-# Запуск Telegram бота при старте приложения
 app = FastAPI()
-
-async def start_bot():
-    # Запускаем polling бота в отдельной задаче
-    loop = asyncio.get_event_loop()
-    loop.create_task(telegram_bot.start_polling())
-
-@app.on_event("startup")
-async def on_startup():
-    await start_bot()  # Запуск бота при старте приложения
-    await init_db()    # Инициализация базы данных
 
 # CORS
 app.add_middleware(
@@ -242,3 +231,10 @@ async def get_orders(user_id: str = None):
             rows = await cursor.fetchall()
     orders = [{"id": row[0], "user_id": row[1], "products": json.loads(row[2]), "total_price": row[3], "status": row[4], "created_at": row[5]} for row in rows]
     return orders
+
+# Запуск бота при старте приложения
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+    logger.info("Starting bot polling...")
+    asyncio.create_task(telegram_bot.start_polling())  # Запуск бота в отдельной задаче
