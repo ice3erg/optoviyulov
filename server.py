@@ -236,8 +236,11 @@ async def get_orders(user_id: str = None):
 @app.on_event("startup")
 async def startup_event():
     import os
-    port = os.getenv("PORT", "8000")  # Явная проверка порта
+    port = os.getenv("PORT")  # Используем только $PORT от Render
+    if not port:
+        logger.error("PORT environment variable not set")
+        raise HTTPException(status_code=500, detail="PORT not configured")
     logger.info(f"Starting server on port {port}")
     await init_db()
-    logger.info("Starting bot polling...")
-    await telegram_bot.start_polling()
+    logger.info("Starting bot polling in background...")
+    asyncio.create_task(telegram_bot.start_polling())  # Запуск бота в фоновом режиме
