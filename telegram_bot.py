@@ -22,15 +22,21 @@ dp = Dispatcher()
 # Флаг для предотвращения повторного запуска
 _is_running = False
 
-SELLER_ID = 984066798  # Например, 123456789
+# Ваш seller_id
+SELLER_ID = 984066798  # Убедитесь, что это ваш реальный user_id
 
 async def is_admin_or_seller(user_id: int) -> bool:
     try:
         async with aiosqlite.connect(DB_NAME) as db:
             async with db.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,)) as cursor:
                 if await cursor.fetchone() is not None:
-                    return True  # Пользователь является админом
-        return user_id == SELLER_ID  # Пользователь является продавцом (вами)
+                    logger.info(f"User {user_id} is an admin")
+                    return True
+            if user_id == SELLER_ID:
+                logger.info(f"User {user_id} is the seller")
+                return True
+        logger.info(f"User {user_id} is neither admin nor seller")
+        return False
     except Exception as e:
         logger.error(f"Error in is_admin_or_seller: {e}")
         return False
@@ -55,16 +61,19 @@ async def init_db():
                     user_id INTEGER PRIMARY KEY
                 )
             """)
-            # Инициализация вас как продавца/админа
             await db.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (SELLER_ID,))
             await db.commit()
-            logger.info("Database initialized or already exists with seller as admin")
+            logger.info(f"Database initialized with seller ID {SELLER_ID} as admin")
     except Exception as e:
         logger.error(f"Error initializing DB: {e}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Добро пожаловать! Используйте /addadmin id, если вы админ или продавец.")
+    user_id = message.from_user.id
+    if await is_admin_or_seller(user_id):
+        await message.answer("Добро пожаловать! Вы админ или продавец. Используйте <code>/addadmin id</code>.")
+    else:
+        await message.answer("Добро пожаловать! У вас нет прав админа или продавца.")
 
 @dp.message(Command("addadmin"))
 async def cmd_addadmin(message: types.Message):
@@ -74,17 +83,17 @@ async def cmd_addadmin(message: types.Message):
     try:
         parts = message.text.strip().split()
         if len(parts) != 2:
-            await message.answer("Использование: /addadmin <user_id>")
+            await message.answer("Использование: <code>/addadmin &lt;user_id&gt;</code>")
             return
         new_admin_id = int(parts[1])
         if await add_admin(new_admin_id):
-            await message.answer(f"✅ Пользователь {new_admin_id} теперь админ.")
+            await message.answer(f"✅ Пользователь <code>{new_admin_id}</code> теперь админ.")
         else:
-            await message.answer("Этот пользователь уже админ.")
+            await message.answer(f"Пользователь <code>{new_admin_id}</code> уже админ.")
     except ValueError:
         await message.answer("Ошибка: user_id должен быть числом.")
     except Exception as e:
-        await message.answer(f"Ошибка: {e}")
+        await message.answer(f"Ошибка: {str(e)}")
 
 @dp.message(Command("admins"))
 async def cmd_admins_list(message: types.Message):
@@ -95,10 +104,10 @@ async def cmd_admins_list(message: types.Message):
         async with aiosqlite.connect(DB_NAME) as db:
             async with db.execute("SELECT user_id FROM admins") as cursor:
                 rows = await cursor.fetchall()
-                ids = [str(row[0]) for row in rows]
+                ids = [f"<code>{row[0]}</code>" for row in rows]
         await message.answer("🧑‍💻 Список админов:\n" + "\n".join(ids))
     except Exception as e:
-        await message.answer(f"Ошибка: {e}")
+        await message.answer(f"Ошибка: {str(e)}")
 
 async def send_order_notification(order: dict):
     try:
@@ -108,12 +117,12 @@ async def send_order_notification(order: dict):
                 admin_ids = [row[0] for row in rows]
 
         text = (f"🛒 Новый заказ:\n\n"
-                f"ID: {order['id']}\n"
-                f"Пользователь: {order['user_id']}\n"
-                f"Сумма: {order['total_price']} ₽\n\n"
+                f"ID: <code>{order['id']}</code>\n"
+                f"Пользователь: <code>{order['user_id']}</code>\n"
+                f"Сумма: <code>{order['total_price']}</code> ₽\n\n"
                 "Товары:\n")
         for p in order["products"]:
-            text += f"- {p['name']} x{p['quantity']}\n"
+            text += f"- <code>{p['name']}</code> x{p['quantity']}\n"
 
         for admin_id in admin_ids:
             try:
@@ -137,6 +146,7 @@ async def start_polling():
         except TelegramConflictError:
             logger.error("Another bot instance is running. Stopping polling.")
             _is_running = False
+            await bot.close()
         except Exception as e:
             logger.error(f"Error in start_polling: {e}")
             _is_running = False
