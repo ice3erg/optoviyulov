@@ -4,6 +4,7 @@ import logging
 import aiosqlite
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties  # Убедимся, что импорт правильный
 from aiogram.filters import Command
 
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
