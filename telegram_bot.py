@@ -4,17 +4,19 @@ import logging
 import aiosqlite
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties  # Убедимся, что импорт правильный
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 
-BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
-bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher()
-
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("telegram_bot")
 
 DB_NAME = "products.db"
+
+# Создание бота и диспетчера (глобальные объекты для использования в server.py)
+BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # Замените на свой токен!
+bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
 
 async def is_admin(user_id: int) -> bool:
     try:
@@ -114,9 +116,3 @@ async def on_startup():
 
 async def start_polling():
     await dp.start_polling(bot, on_startup=on_startup)
-
-def run_bot():
-    asyncio.run(start_polling())
-
-if __name__ == "__main__":
-    run_bot()
