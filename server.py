@@ -237,4 +237,4 @@ async def get_orders(user_id: str = None):
 async def startup_event():
     await init_db()
     logger.info("Starting bot polling...")
-    asyncio.create_task(telegram_bot.start_polling())  # Запуск бота в отдельной задаче
+    await telegram_bot.start_polling()  # Прямой вызов вместо create_task для контроля
