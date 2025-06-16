@@ -1,13 +1,8 @@
-
 import asyncio
-import logging
 import sqlite3
-from aiogram import Bot, Dispatcher
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ContextTypes, filters
-)
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 
 # --- Конфигурация ---
 BOT_TOKEN = "7794423659:AAEhrbYTbdOciv-KKbayauY5qPmoCmNt4-E"  # <-- Замени на свой токен!
@@ -15,43 +10,61 @@ dp = Dispatcher(bot)
 
 logging.basicConfig(level=logging.INFO)
 
+def is_admin(user_id):
+    conn = sqlite3.connect("products.db")
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM admins WHERE user_id = ?", (user_id,))
+    res = cur.fetchone()
+    conn.close()
+    return res is not None
+
+def add_admin(user_id):
+    conn = sqlite3.connect("products.db")
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO admins (user_id) VALUES (?)", (user_id,))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
 @dp.message_handler(commands=["start"])
 async def cmd_start(message: types.Message):
-    await message.reply("Добро пожаловать! Используйте /addadmin <id>, если вы админ.")
+    await message.answer("Добро пожаловать! Используйте /addadmin <id>, если вы админ.")
 
 @dp.message_handler(commands=["addadmin"])
 async def cmd_addadmin(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.reply("У вас нет прав добавлять админов.")
+        await message.answer("У вас нет прав добавлять админов.")
         return
     try:
         parts = message.text.strip().split()
         if len(parts) != 2:
-            await message.reply("Использование: /addadmin <user_id>")
+            await message.answer("Использование: /addadmin <user_id>")
             return
         new_admin_id = int(parts[1])
         if add_admin(new_admin_id):
-            await message.reply(f"✅ Пользователь {new_admin_id} теперь админ.")
+            await message.answer(f"✅ Пользователь {new_admin_id} теперь админ.")
         else:
-            await message.reply("Этот пользователь уже админ.")
+            await message.answer("Этот пользователь уже админ.")
     except Exception as e:
-        await message.reply(f"Ошибка: {e}")
+        await message.answer(f"Ошибка: {e}")
 
 @dp.message_handler(commands=["admins"])
 async def cmd_admins_list(message: types.Message):
     if not is_admin(message.from_user.id):
-        await message.reply("Нет доступа.")
+        await message.answer("Нет доступа.")
         return
-    import sqlite3
     conn = sqlite3.connect("products.db")
     cur = conn.cursor()
     cur.execute("SELECT user_id FROM admins")
     ids = [str(row[0]) for row in cur.fetchall()]
     conn.close()
-    await message.reply("🧑‍💻 Список админов:\n" + "\n".join(ids))
+    await message.answer("🧑‍💻 Список админов:\n" + "\n".join(ids))
 
 async def send_order_notification(order: dict):
-    import sqlite3
     conn = sqlite3.connect("products.db")
     cur = conn.cursor()
     cur.execute("SELECT user_id FROM admins")
