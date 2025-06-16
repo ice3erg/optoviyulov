@@ -2,14 +2,13 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import sqlite3
-import logging
 import os
 import shutil
 import json
-import telegram_bot
 import asyncio
-import threading
+import aiosqlite
+import logging
+import telegram_bot
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -23,9 +22,10 @@ os.makedirs("static/uploads", exist_ok=True)
 app = FastAPI()
 
 @app.on_event("startup")
-def start_bot():
-    thread = threading.Thread(target=telegram_bot.run_bot, daemon=True)
-    thread.start()
+async def start_bot():
+    loop = asyncio.get_event_loop()
+    telegram_bot.dp.startup.connect(telegram_bot.on_startup)
+    loop.create_task(telegram_bot.start_polling())
 
 # CORS для Telegram-апки
 app.add_middleware(
@@ -38,8 +38,49 @@ app.add_middleware(
 
 # Подключение к базе данных
 DB_PATH = "products.db"
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cursor = conn.cursor()
+
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER UNIQUE NOT NULL
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                parent_id INTEGER,
+                FOREIGN KEY (parent_id) REFERENCES categories(id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                price REAL,
+                images TEXT DEFAULT '["/static/placeholder.jpg"]',
+                category_id INTEGER,
+                FOREIGN KEY (category_id) REFERENCES categories(id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                products TEXT,
+                total_price REAL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await db.commit()
+
+@app.on_event("startup")
+async def on_startup():
+    await init_db()
 
 # Создание таблиц
 
