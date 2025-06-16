@@ -22,7 +22,7 @@ dp = Dispatcher()
 # Флаг для предотвращения повторного запуска
 _is_running = False
 
-SELLER_ID = <984066798>  # Например, 123456789
+SELLER_ID = 984066798  # Например, 123456789
 
 async def is_admin_or_seller(user_id: int) -> bool:
     try:
