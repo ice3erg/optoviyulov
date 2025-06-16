@@ -51,7 +51,7 @@ async def init_db():
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Добро пожаловать! Используйте /addadmin <id>, если вы админ.")
+    await message.answer("Добро пожаловать! Используйте /addadmin id, если вы админ.")
 
 @dp.message(Command("addadmin"))
 async def cmd_addadmin(message: types.Message):
